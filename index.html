@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard de Metas — Polos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="header-inner">
+      <div class="header-brand">
+        <span class="brand-dot"></span>
+        <span class="brand-name">Dashboard de Metas</span>
+      </div>
+      <div class="header-meta">
+        <span id="last-updated" class="last-updated">Carregando...</span>
+        <button class="btn-refresh" id="btn-refresh" title="Atualizar dados">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+          </svg>
+          Atualizar
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- LOADING STATE -->
+  <div id="loading-screen" class="loading-screen">
+    <div class="loading-inner">
+      <div class="loading-spinner"></div>
+      <p class="loading-text">Lendo dados da planilha...</p>
+    </div>
+  </div>
+
+  <!-- ERROR STATE -->
+  <div id="error-screen" class="error-screen hidden">
+    <div class="error-inner">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="8" x2="12" y2="12"></line>
+        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+      </svg>
+      <h2>Não foi possível carregar os dados</h2>
+      <p id="error-message">Verifique se a planilha está pública e o ID está correto.</p>
+      <div class="config-box">
+        <label>ID da Planilha Google Sheets</label>
+        <input type="text" id="sheet-id-input" placeholder="Cole o ID da planilha aqui" />
+        <button class="btn-primary" id="btn-save-id">Salvar e tentar novamente</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN DASHBOARD -->
+  <main id="dashboard" class="dashboard hidden">
+
+    <!-- CONFIGURAÇÃO (visível só quando necessário) -->
+    <div class="config-bar" id="config-bar">
+      <div class="container">
+        <span class="config-label">⚙️ ID da planilha:</span>
+        <input type="text" id="inline-sheet-id" class="config-input" placeholder="ID do Google Sheets" />
+        <button class="btn-sm" id="btn-update-id">Aplicar</button>
+      </div>
+    </div>
+
+    <!-- HERO KPIs -->
+    <section class="hero">
+      <div class="container">
+        <div class="hero-eyebrow">Visão Geral · <span id="hero-date"></span></div>
+        <h1 class="hero-title">Performance de Polos</h1>
+        <div class="kpi-grid">
+          <div class="kpi-card kpi-main">
+            <span class="kpi-label">Pagantes (Geral)</span>
+            <span class="kpi-value" id="kpi-pagantes">—</span>
+            <span class="kpi-sub" id="kpi-meta-total">Meta: —</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">% Meta Móvel</span>
+            <span class="kpi-value kpi-percent" id="kpi-pct-movel">—</span>
+            <div class="kpi-bar-wrap"><div class="kpi-bar" id="bar-movel"></div></div>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">% Meta Edital</span>
+            <span class="kpi-value kpi-percent" id="kpi-pct-edital">—</span>
+            <div class="kpi-bar-wrap"><div class="kpi-bar" id="bar-edital"></div></div>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">Polos Ativos</span>
+            <span class="kpi-value" id="kpi-polos">—</span>
+            <span class="kpi-sub" id="kpi-acima-meta">— acima de 100%</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CARTEIRAS (Consolidado) -->
+    <section class="section">
+      <div class="container">
+        <div class="section-header">
+          <h2 class="section-title">Desempenho por Carteira</h2>
+          <span class="section-badge" id="badge-carteiras">—</span>
+        </div>
+        <div class="carteiras-grid" id="carteiras-grid">
+          <!-- Preenchido via JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- RANKING -->
+    <section class="section section-dark">
+      <div class="container">
+        <div class="section-header">
+          <h2 class="section-title">Ranking de Gerentes</h2>
+          <span class="section-badge">% Meta Móvel</span>
+        </div>
+        <div class="ranking-list" id="ranking-list">
+          <!-- Preenchido via JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- TABELA DE POLOS -->
+    <section class="section">
+      <div class="container">
+        <div class="section-header">
+          <h2 class="section-title">Tabela de Polos</h2>
+          <span class="section-badge" id="badge-polos-total">—</span>
+        </div>
+
+        <!-- Filtros -->
+        <div class="filters-bar">
+          <div class="search-wrap">
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="search-input" class="search-input" placeholder="Buscar polo, parceiro, analista..." />
+          </div>
+          <select id="filter-carteira" class="filter-select">
+            <option value="">Todas as carteiras</option>
+          </select>
+          <select id="filter-status" class="filter-select">
+            <option value="">Todos os status</option>
+            <option value="above">Acima da meta (≥100%)</option>
+            <option value="near">Próximo (80-99%)</option>
+            <option value="below">Abaixo (< 80%)</option>
+          </select>
+          <button class="btn-sm btn-ghost" id="btn-clear-filters">Limpar</button>
+        </div>
+
+        <!-- Tabela -->
+        <div class="table-wrap">
+          <table class="data-table" id="polos-table">
+            <thead>
+              <tr>
+                <th class="sortable" data-col="polo">Polo <span class="sort-icon">↕</span></th>
+                <th class="sortable" data-col="parceiro">Parceiro <span class="sort-icon">↕</span></th>
+                <th>Carteira</th>
+                <th>Analista</th>
+                <th class="num sortable" data-col="pagantes">Pagantes <span class="sort-icon">↕</span></th>
+                <th class="num sortable" data-col="meta_edital">Meta Edital <span class="sort-icon">↕</span></th>
+                <th class="num sortable" data-col="pct_edital">% Edital <span class="sort-icon">↕</span></th>
+                <th class="num sortable" data-col="pct_movel">% Móvel <span class="sort-icon">↕</span></th>
+                <th class="num">Status</th>
+              </tr>
+            </thead>
+            <tbody id="polos-tbody">
+              <!-- Preenchido via JS -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Paginação -->
+        <div class="pagination" id="pagination">
+          <span class="pagination-info" id="pagination-info"></span>
+          <div class="pagination-controls">
+            <button class="btn-page" id="btn-prev">← Anterior</button>
+            <span id="page-indicator"></span>
+            <button class="btn-page" id="btn-next">Próximo →</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="container">
+      <span>Dashboard de Metas · Dados via Google Sheets</span>
+      <span id="footer-records"></span>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
