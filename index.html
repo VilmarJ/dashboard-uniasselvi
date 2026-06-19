@@ -75,25 +75,26 @@
         <div class="hero-eyebrow">Visão Geral · <span id="hero-date"></span></div>
         <h1 class="hero-title">Performance de Polos</h1>
         <div class="kpi-grid">
-          <div class="kpi-card kpi-main">
-            <span class="kpi-label">Pagantes (Geral)</span>
+          <div class="kpi-card">
+            <span class="kpi-label">Pagantes</span>
             <span class="kpi-value" id="kpi-pagantes">—</span>
-            <span class="kpi-sub" id="kpi-meta-total">Meta: —</span>
           </div>
           <div class="kpi-card">
-            <span class="kpi-label">% Meta Móvel</span>
-            <span class="kpi-value kpi-percent" id="kpi-pct-movel">—</span>
-            <div class="kpi-bar-wrap"><div class="kpi-bar" id="bar-movel"></div></div>
+            <span class="kpi-label">Meta Móvel</span>
+            <span class="kpi-value" id="kpi-meta-movel">—</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">Meta Ciclo - 10 Jul</span>
+            <span class="kpi-value" id="kpi-meta-ciclo">—</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-label">Meta Edital</span>
+            <span class="kpi-value" id="kpi-meta-edital">—</span>
           </div>
           <div class="kpi-card">
             <span class="kpi-label">% Meta Edital</span>
-            <span class="kpi-value kpi-percent" id="kpi-pct-edital">—</span>
-            <div class="kpi-bar-wrap"><div class="kpi-bar" id="bar-edital"></div></div>
-          </div>
-          <div class="kpi-card">
-            <span class="kpi-label">Polos Ativos</span>
-            <span class="kpi-value" id="kpi-polos">—</span>
-            <span class="kpi-sub" id="kpi-acima-meta">— acima de 100%</span>
+            <div id="gauge-edital"></div>
+            
           </div>
         </div>
       </div>
@@ -141,9 +142,23 @@
             </svg>
             <input type="text" id="search-input" class="search-input" placeholder="Buscar polo, parceiro, analista..." />
           </div>
-          <select id="filter-carteira" class="filter-select">
-            <option value="">Todas as carteiras</option>
-          </select>
+          <div class="ms-dropdown" id="ms-carteira">
+            <button type="button" class="ms-trigger" id="ms-carteira-trigger">
+              <span id="ms-carteira-label">Todas as carteiras</span>
+              <svg class="ms-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+            <div class="ms-panel hidden" id="ms-carteira-panel">
+              <div class="ms-panel-actions">
+                <button type="button" class="ms-action" id="ms-carteira-all">Selecionar todas</button>
+                <button type="button" class="ms-action" id="ms-carteira-none">Limpar</button>
+              </div>
+              <div class="ms-options" id="ms-carteira-options">
+                <!-- Preenchido via JS -->
+              </div>
+            </div>
+          </div>
           <select id="filter-status" class="filter-select">
             <option value="">Todos os status</option>
             <option value="above">Acima da meta (≥100%)</option>

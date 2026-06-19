@@ -30,9 +30,11 @@ const state = {
   page:         1,
   sortCol:      'polo',
   sortDir:      'asc',
+  selectedCarteiras: new Set(), // vazio = todas
 };
 
 // ── URLS DO SHEETS ────────────────────────────────────────────
+
 function buildCsvUrl(sheetId, tabName) {
   return `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}`;
 }
@@ -81,7 +83,7 @@ function setupEventListeners() {
 
   // Filtros e busca
   document.getElementById('search-input').addEventListener('input', () => { state.page = 1; applyFiltersAndRender(); });
-  document.getElementById('filter-carteira').addEventListener('change', () => { state.page = 1; applyFiltersAndRender(); });
+  setupCarteiraDropdown();
   document.getElementById('filter-status').addEventListener('change', () => { state.page = 1; applyFiltersAndRender(); });
   document.getElementById('btn-clear-filters').addEventListener('click', clearFilters);
 
@@ -220,12 +222,14 @@ function parseConsolidado(csv) {
   if (geralLine) {
     const c = parseCsvLine(geralLine);
     results._geral = {
-      pagantes:   parseNum(c[1]),
-      meta_movel: parseNum(c[2]),
-      pct_movel:  parsePct(c[3]),
-      meta_edital:parseNum(c[6]),
-      pct_edital: parsePct(c[7]),
-    };
+    pagantes:    parseNum(c[1]),
+    meta_movel:  parseNum(c[2]),
+    pct_movel:   parsePct(c[3]),
+    meta_ciclo:  parseNum(c[4]),   // novo campo
+    pct_ciclo:   parsePct(c[5]),   // se quiser usar depois
+    meta_edital: parseNum(c[6]),
+    pct_edital:  parsePct(c[7]),
+  };;
   }
 
   return results;
@@ -243,41 +247,31 @@ function renderAll() {
 
 function renderKPIs() {
   const geral = state.consolidado._geral;
+  if (!geral) return;
 
-  // Tenta usar dados do GERAL SEM FILTROS, senão soma da ABERTURA
-  let pagantes, metaTotal, pctMovel, pctEdital;
+  setText('kpi-pagantes', fmt(geral.pagantes));
+  setText('kpi-meta-movel', fmt(geral.meta_movel));
+  setText('kpi-meta-ciclo', fmt(geral.meta_ciclo)); // novo campo
+  setText('kpi-meta-edital', fmt(geral.meta_edital));
+  setText('kpi-pct-edital', fmtPct(geral.pct_edital));
 
-  if (geral && geral.pagantes > 0) {
-    pagantes  = geral.pagantes;
-    metaTotal = geral.meta_movel;
-    pctMovel  = geral.pct_movel;
-    pctEdital = geral.pct_edital;
-  } else {
-    pagantes  = state.abertura.reduce((s, r) => s + r.pagantes, 0);
-    metaTotal = state.abertura.reduce((s, r) => s + r.meta_movel, 0);
-    pctMovel  = metaTotal > 0 ? (pagantes / metaTotal * 100) : 0;
-    pctEdital = state.abertura.reduce((s, r) => s + r.meta_edital, 0);
-    pctEdital = pctEdital > 0 ? (pagantes / pctEdital * 100) : 0;
-  }
+  renderGauge('gauge-edital', geral.pct_edital);
+}
 
-  const polosAtivos  = state.abertura.filter(r => r.pagantes > 0).length;
-  const acimaMeta    = state.abertura.filter(r => r.pct_movel >= 100).length;
+function renderGauge(id, pct) {
+  const color = pct >= 100 ? 'var(--green)' : pct >= 80 ? 'var(--yellow)' : 'var(--red)';
+  const radius = 50;
+  const circumference = Math.PI * radius; // semicírculo
+  const offset = circumference - (pct / 100) * circumference;
 
-  setText('kpi-pagantes',   fmt(pagantes));
-  setText('kpi-meta-total', `Meta: ${fmt(metaTotal)}`);
-  setText('kpi-pct-movel',  fmtPct(pctMovel));
-  setText('kpi-pct-edital', fmtPct(pctEdital));
-  setText('kpi-polos',      polosAtivos);
-  setText('kpi-acima-meta', `${acimaMeta} acima de 100%`);
-
-  // Barras animadas
-  requestAnimationFrame(() => {
-    setWidth('bar-movel',  Math.min(pctMovel, 100));
-    setWidth('bar-edital', Math.min(pctEdital, 100));
-  });
-
-  // Data
-  setText('hero-date', new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }));
+  const svg = `
+    <svg width="120" height="70" viewBox="0 0 120 70">
+      <path d="M10,60 A50,50 0 0,1 110,60" fill="none" stroke="#333" stroke-width="10"/>
+      <path d="M10,60 A50,50 0 0,1 110,60" fill="none" stroke="${color}" stroke-width="10"
+            stroke-dasharray="${circumference}" stroke-dashoffset="${offset}"/>
+      <text x="60" y="65" text-anchor="middle" fill="${color}" font-size="14" font-weight="bold">${pct.toFixed(1)}%</text>
+    </svg>`;
+  document.getElementById(id).innerHTML = svg;
 }
 
 function renderCarteiras() {
@@ -356,25 +350,99 @@ function renderRanking() {
 }
 
 function populateFilterCarteira() {
-  const sel = document.getElementById('filter-carteira');
-  const carteiras = [...new Set(state.abertura.map(r => r.carteira))].sort();
-  carteiras.forEach(c => {
-    if (!c) return;
-    const opt = document.createElement('option');
-    opt.value = c;
-    opt.textContent = c;
-    sel.appendChild(opt);
+  const optionsWrap = document.getElementById('ms-carteira-options');
+  const carteiras = [...new Set(state.abertura.map(r => r.carteira))].filter(Boolean).sort();
+
+  optionsWrap.innerHTML = carteiras.map(c => `
+    <label class="ms-option">
+      <input type="checkbox" value="${escapeAttr(c)}" />
+      <span class="ms-option-label" title="${escapeAttr(c)}">${c}</span>
+    </label>`).join('');
+
+  // Marca os checkboxes conforme estado atual (vazio = nenhum marcado = "todas")
+  optionsWrap.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+    cb.checked = state.selectedCarteiras.has(cb.value);
+    cb.addEventListener('change', () => {
+      if (cb.checked) state.selectedCarteiras.add(cb.value);
+      else state.selectedCarteiras.delete(cb.value);
+      state.page = 1;
+      updateCarteiraLabel();
+      applyFiltersAndRender();
+    });
   });
+
+  updateCarteiraLabel();
+}
+
+function setupCarteiraDropdown() {
+  const dropdown = document.getElementById('ms-carteira');
+  const trigger  = document.getElementById('ms-carteira-trigger');
+  const panel    = document.getElementById('ms-carteira-panel');
+
+  trigger.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isOpen = !panel.classList.contains('hidden');
+    if (isOpen) {
+      panel.classList.add('hidden');
+      dropdown.classList.remove('open');
+    } else {
+      panel.classList.remove('hidden');
+      dropdown.classList.add('open');
+    }
+  });
+
+  // Fecha ao clicar fora
+  document.addEventListener('click', (e) => {
+    if (!dropdown.contains(e.target)) {
+      panel.classList.add('hidden');
+      dropdown.classList.remove('open');
+    }
+  });
+
+  document.getElementById('ms-carteira-all').addEventListener('click', () => {
+    state.selectedCarteiras.clear(); // vazio = todas selecionadas (sem filtro)
+    document.querySelectorAll('#ms-carteira-options input[type="checkbox"]').forEach(cb => cb.checked = true);
+    [...new Set(state.abertura.map(r => r.carteira))].filter(Boolean).forEach(c => state.selectedCarteiras.add(c));
+    state.page = 1;
+    updateCarteiraLabel();
+    applyFiltersAndRender();
+  });
+
+  document.getElementById('ms-carteira-none').addEventListener('click', () => {
+    state.selectedCarteiras.clear();
+    document.querySelectorAll('#ms-carteira-options input[type="checkbox"]').forEach(cb => cb.checked = false);
+    state.page = 1;
+    updateCarteiraLabel();
+    applyFiltersAndRender();
+  });
+}
+
+function updateCarteiraLabel() {
+  const label = document.getElementById('ms-carteira-label');
+  const totalCarteiras = new Set(state.abertura.map(r => r.carteira)).size;
+  const n = state.selectedCarteiras.size;
+
+  if (n === 0 || n === totalCarteiras) {
+    label.textContent = 'Todas as carteiras';
+  } else if (n === 1) {
+    label.textContent = [...state.selectedCarteiras][0];
+  } else {
+    label.textContent = `${n} carteiras selecionadas`;
+  }
+}
+
+function escapeAttr(str) {
+  return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 }
 
 // ── FILTROS + TABELA ──────────────────────────────────────────
 function applyFiltersAndRender() {
   const search   = document.getElementById('search-input').value.toLowerCase().trim();
-  const carteira = document.getElementById('filter-carteira').value;
   const status   = document.getElementById('filter-status').value;
+  const carteirasSelecionadas = state.selectedCarteiras;
 
   state.filtered = state.abertura.filter(row => {
-    if (carteira && row.carteira !== carteira) return false;
+    if (carteirasSelecionadas.size > 0 && !carteirasSelecionadas.has(row.carteira)) return false;
     if (status === 'above'  && row.pct_movel <  100) return false;
     if (status === 'near'   && (row.pct_movel < 80 || row.pct_movel >= 100)) return false;
     if (status === 'below'  && row.pct_movel >= 80) return false;
@@ -442,8 +510,10 @@ function renderTable() {
 
 function clearFilters() {
   document.getElementById('search-input').value  = '';
-  document.getElementById('filter-carteira').value = '';
   document.getElementById('filter-status').value   = '';
+  state.selectedCarteiras.clear();
+  document.querySelectorAll('#ms-carteira-options input[type="checkbox"]').forEach(cb => cb.checked = false);
+  updateCarteiraLabel();
   state.page = 1;
   applyFiltersAndRender();
 }
