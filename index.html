@@ -1,218 +1,232 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dashboard de Metas — Polos</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard de Metas | UNIASSELVI</title>
+  <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
 
-  <!-- HEADER -->
-  <header class="header">
-    <div class="header-inner">
-      <div class="header-brand">
-        <span class="brand-dot"></span>
-        <span class="brand-name">Dashboard de Metas</span>
-      </div>
-      <div class="header-meta">
-        <span id="last-updated" class="last-updated">Carregando...</span>
-        <button class="btn-refresh" id="btn-refresh" title="Atualizar dados">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="23 4 23 10 17 10"></polyline>
-            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
-          </svg>
-          Atualizar
-        </button>
-      </div>
-    </div>
-  </header>
+  <main class="page">
 
-  <!-- LOADING STATE -->
-  <div id="loading-screen" class="loading-screen">
-    <div class="loading-inner">
-      <div class="loading-spinner"></div>
-      <p class="loading-text">Lendo dados da planilha...</p>
-    </div>
-  </div>
-
-  <!-- ERROR STATE -->
-  <div id="error-screen" class="error-screen hidden">
-    <div class="error-inner">
-      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-        <circle cx="12" cy="12" r="10"></circle>
-        <line x1="12" y1="8" x2="12" y2="12"></line>
-        <line x1="12" y1="16" x2="12.01" y2="16"></line>
-      </svg>
-      <h2>Não foi possível carregar os dados</h2>
-      <p id="error-message">Verifique se a planilha está pública e o ID está correto.</p>
-      <div class="config-box">
-        <label>ID da Planilha Google Sheets</label>
-        <input type="text" id="sheet-id-input" placeholder="Cole o ID da planilha aqui" />
-        <button class="btn-primary" id="btn-save-id">Salvar e tentar novamente</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- MAIN DASHBOARD -->
-  <main id="dashboard" class="dashboard hidden">
-
-    <!-- CONFIGURAÇÃO (visível só quando necessário) -->
-    <div class="config-bar" id="config-bar">
-      <div class="container">
-        <span class="config-label">⚙️ ID da planilha:</span>
-        <input type="text" id="inline-sheet-id" class="config-input" placeholder="ID do Google Sheets" />
-        <button class="btn-sm" id="btn-update-id">Aplicar</button>
-      </div>
-    </div>
-
-    <!-- HERO KPIs -->
-    <section class="hero">
-      <div class="container">
-        <div class="hero-eyebrow">Visão Geral · <span id="hero-date"></span></div>
-        <h1 class="hero-title">Performance de Polos</h1>
-        <div class="kpi-grid">
-          <div class="kpi-card">
-            <span class="kpi-label">Pagantes</span>
-            <span class="kpi-value" id="kpi-pagantes">—</span>
-          </div>
-          <div class="kpi-card">
-            <span class="kpi-label">Meta Móvel</span>
-            <span class="kpi-value" id="kpi-meta-movel">—</span>
-          </div>
-          <div class="kpi-card">
-            <span class="kpi-label">Meta Ciclo - 10 Jul</span>
-            <span class="kpi-value" id="kpi-meta-ciclo">—</span>
-          </div>
-          <div class="kpi-card">
-            <span class="kpi-label">Meta Edital</span>
-            <span class="kpi-value" id="kpi-meta-edital">—</span>
-          </div>
-          <div class="kpi-card">
-            <span class="kpi-label">% Meta Edital</span>
-            <div id="gauge-edital"></div>
-            
+<section class="panel panel--top-dashboard">
+      <div class="panel-bg-text">UNIASSELVI</div>
+      
+      <div class="panel-header">
+        <div class="brand">
+          <span class="brand-icon">📊</span>
+          <div class="brand-text">
+            <h1>Pagamentos</h1>
+            <p class="brand-sub">Monitoramento em tempo real do volume de pagantes com base no relatório do portal comercial</p>
           </div>
         </div>
-      </div>
-    </section>
-
-    <!-- CARTEIRAS (Consolidado) -->
-    <section class="section">
-      <div class="container">
-        <div class="section-header">
-          <h2 class="section-title">Desempenho por Carteira</h2>
-          <span class="section-badge" id="badge-carteiras">—</span>
-        </div>
-        <div class="carteiras-grid" id="carteiras-grid">
-          <!-- Preenchido via JS -->
-        </div>
-      </div>
-    </section>
-
-    <!-- RANKING -->
-    <section class="section section-dark">
-      <div class="container">
-        <div class="section-header">
-          <h2 class="section-title">Ranking de Gerentes</h2>
-          <span class="section-badge">% Meta Móvel</span>
-        </div>
-        <div class="ranking-list" id="ranking-list">
-          <!-- Preenchido via JS -->
-        </div>
-      </div>
-    </section>
-
-    <!-- TABELA DE POLOS -->
-    <section class="section">
-      <div class="container">
-        <div class="section-header">
-          <h2 class="section-title">Tabela de Polos</h2>
-          <span class="section-badge" id="badge-polos-total">—</span>
-        </div>
-
-        <!-- Filtros -->
-        <div class="filters-bar">
-          <div class="search-wrap">
-            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
-            <input type="text" id="search-input" class="search-input" placeholder="Buscar polo, parceiro, analista..." />
+        
+        <!-- Grupo de Atualização: Movido para o topo direito de forma integrada -->
+        <div class="update-wrapper">
+          <div class="timestamp-badge">
+            <span class="status-dot" id="statusDot"></span>
+            <span class="timestamp-label">Atualizado às:</span>
+            <span class="timestamp-value" id="statusText">--:--</span>
           </div>
-          <div class="ms-dropdown" id="ms-carteira">
-            <button type="button" class="ms-trigger" id="ms-carteira-trigger">
-              <span id="ms-carteira-label">Todas as carteiras</span>
-              <svg class="ms-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="6 9 12 15 18 9"></polyline>
-              </svg>
-            </button>
-            <div class="ms-panel hidden" id="ms-carteira-panel">
-              <div class="ms-panel-actions">
-                <button type="button" class="ms-action" id="ms-carteira-all">Selecionar todas</button>
-                <button type="button" class="ms-action" id="ms-carteira-none">Limpar</button>
-              </div>
-              <div class="ms-options" id="ms-carteira-options">
-                <!-- Preenchido via JS -->
-              </div>
+          <button class="refresh-btn" id="refreshBtn">
+            <span class="refresh-icon">⟳</span>
+            Atualizar dados
+          </button>
+        </div>
+      </div>
+
+      <!-- Nova estrutura de Grid em Grupos Modernos -->
+      <div class="panel-stats-grouped" id="panelStats">
+        
+        <!-- KPI Principal Solitário -->
+        <div class="stat-group stat-group--main">
+          <span class="stat-label-group">Volume Geral</span>
+          <div class="stat-main-box">
+            <span class="stat-value-large" id="cardPagantes">--</span>
+            <span class="stat-sublabel">Total de Pagantes</span>
+          </div>
+        </div>
+
+        <!-- Grupo 1: Meta Móvel -->
+        <div class="stat-group">
+          <span class="stat-label-group">Meta Móvel</span>
+          <div class="stat-split-box">
+            <div class="stat-sub-item">
+              <span class="stat-value-grouped" id="cardMetaMovel">--</span>
+              <span class="stat-sublabel">Esperado</span>
+            </div>
+            <div class="stat-sub-item border-left">
+              <span class="stat-value-grouped percent" id="cardMetaMovelPct">--</span>
+              <span class="stat-sublabel">Atingido</span>
             </div>
           </div>
-          <select id="filter-status" class="filter-select">
-            <option value="">Todos os status</option>
-            <option value="above">Acima da meta (≥100%)</option>
-            <option value="near">Próximo (80-99%)</option>
-            <option value="below">Abaixo (< 80%)</option>
-          </select>
-          <button class="btn-sm btn-ghost" id="btn-clear-filters">Limpar</button>
         </div>
 
-        <!-- Tabela -->
-        <div class="table-wrap">
-          <table class="data-table" id="polos-table">
+        <!-- Grupo 2: Meta Ciclo -->
+        <div class="stat-group">
+          <span class="stat-label-group">Meta Ciclo (10 JUL)</span>
+          <div class="stat-split-box">
+            <div class="stat-sub-item">
+              <span class="stat-value-grouped" id="cardMetaCiclo">--</span>
+              <span class="stat-sublabel">Alvo Final</span>
+            </div>
+            <div class="stat-sub-item border-left">
+              <span class="stat-value-grouped percent" id="cardMetaCicloPct">--</span>
+              <span class="stat-sublabel">Progresso</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <section class="panel panel--carteiras">
+      <div class="panel-header">
+        <div class="brand">
+          <span class="brand-icon">🗂️</span>
+          <div class="brand-text">
+            <h1>Carteiras e Operações</h1>
+            <p class="brand-sub">Pagantes e % Meta Móvel por gerência</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="gerencias-grid">
+        <div class="gerencias-col">
+          <h2 class="gerencias-col-title">Carteira</h2>
+          <div class="gerencia-row" data-codigo="100000090"><span class="gerencia-nome">Gerente Florença <small>Kelly
+                Strutz</small></span><span class="gerencia-pagantes">--</span><span class="gerencia-pct">--</span></div>
+          <div class="gerencia-row" data-codigo="17843"><span class="gerencia-nome">Gerente Gênova <small>Jéssica
+                Aparecida Leoni</small></span><span class="gerencia-pagantes">--</span><span
+              class="gerencia-pct">--</span></div>
+          <div class="gerencia-row" data-codigo="18881"><span class="gerencia-nome">Gerente Milão <small>João
+                Block</small></span><span class="gerencia-pagantes">--</span><span class="gerencia-pct">--</span></div>
+          <div class="gerencia-row" data-codigo="100000929"><span class="gerencia-nome">Gerente Roma <small>Marina
+                Veloso</small></span><span class="gerencia-pagantes">--</span><span class="gerencia-pct">--</span></div>
+          <div class="gerencia-row" data-codigo="13173"><span class="gerencia-nome">Gerente Veneza <small>Reginei
+                Novais</small></span><span class="gerencia-pagantes">--</span><span class="gerencia-pct">--</span></div>
+        </div>
+
+        <div class="gerencias-col">
+          <h2 class="gerencias-col-title">Operações</h2>
+          <div class="gerencia-row" data-codigo="100029673"><span class="gerencia-nome">Gerente Diretoria OP
+              <small>Alessandra Baron Eugenio</small></span><span class="gerencia-pagantes">--</span><span
+              class="gerencia-pct">--</span></div>
+          <div class="gerencia-row" data-codigo="100000217"><span class="gerencia-nome">Gerente Operações I <small>Ary
+                Oliveira Filho</small></span><span class="gerencia-pagantes">--</span><span
+              class="gerencia-pct">--</span></div>
+          <div class="gerencia-row" data-codigo="100082540"><span class="gerencia-nome">Gerente Operações II
+              <small>Lucas Aguiar</small></span><span class="gerencia-pagantes">--</span><span
+              class="gerencia-pct">--</span></div>
+        </div>
+      </div>
+    </section>
+
+
+
+<section class="panel panel--rankings">
+  <div class="rankings-main-header">
+    <span class="rankings-main-icon">🏆</span>
+    <h1 class="rankings-main-title">Rankings dos Polos</h1>
+    <p class="rankings-main-sub">Top 10 polos com maior volume de pagamentos</p>
+    <div class="rankings-header-divider">
+      <span class="rankings-header-divider-dot"></span>
+      <span class="rankings-header-divider-line"></span>
+      <span class="rankings-header-divider-dot"></span>
+    </div>
+  </div>
+
+  <div class="rankings-grid">
+    <!-- Coluna Esquerda: Top 10 Maiores Pagantes -->
+  <div class="ranking-col">
+        <div class="polos-table-wrapper" style="background: transparent; border: none;">
+          <table class="data-table">
             <thead>
               <tr>
-                <th class="sortable" data-col="polo">Polo <span class="sort-icon">↕</span></th>
-                <th class="sortable" data-col="parceiro">Parceiro <span class="sort-icon">↕</span></th>
-                <th>Carteira</th>
-                <th>Analista</th>
-                <th class="num sortable" data-col="pagantes">Pagantes <span class="sort-icon">↕</span></th>
-                <th class="num sortable" data-col="meta_edital">Meta Edital <span class="sort-icon">↕</span></th>
-                <th class="num sortable" data-col="pct_edital">% Edital <span class="sort-icon">↕</span></th>
-                <th class="num sortable" data-col="pct_movel">% Móvel <span class="sort-icon">↕</span></th>
-                <th class="num">Status</th>
+                <th style="width: 3rem; text-align: center;">#</th>
+                <th>Polo / Carteira</th>
+                <th class="txt-right" style="width: 8rem;">Pagamentos</th>
+                <th class="txt-right" style="width: 8rem;">% Meta Móvel</th>
               </tr>
             </thead>
-            <tbody id="polos-tbody">
-              <!-- Preenchido via JS -->
+            <tbody id="rankingTopPagantes">
+              <tr>
+                <td colspan="4" class="table-empty">Aguardando dados...</td>
+              </tr>
             </tbody>
           </table>
         </div>
+      </div>
+  </div>
+</section>
 
-        <!-- Paginação -->
-        <div class="pagination" id="pagination">
-          <span class="pagination-info" id="pagination-info"></span>
-          <div class="pagination-controls">
-            <button class="btn-page" id="btn-prev">← Anterior</button>
-            <span id="page-indicator"></span>
-            <button class="btn-page" id="btn-next">Próximo →</button>
+    <section class="panel panel--polos">
+      <div class="panel-header">
+        <div class="brand">
+          <span class="brand-icon">🏫</span>
+          <div class="brand-text">
+            <h1>Visão Detalhada dos Polos</h1>
+            <p class="brand-sub">Filtros dinâmicos cruzando a aba de Abertura</p>
           </div>
         </div>
-
       </div>
-    </section>
+
+      <div class="polos-filter-bar">
+        <div class="search-wrapper">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="searchGeral" class="filter-input-top" placeholder="Buscar por polo, carteira, analista...">
+        </div>
+        
+        <div class="select-wrapper">
+          <div class="select-wrapper">
+          <div class="custom-select-trigger" id="carteiraSelectTrigger">Todas as carteiras</div>
+          <div class="custom-select-dropdown" id="carteiraDropdown">
+            </div>
+        </div>
+          <div class="custom-select-dropdown" id="parceiroDropdown">
+            </div>
+        </div>
+
+        <button class="clear-filters-btn" id="clearFiltersBtn">Limpar</button>
+      </div>
+
+      <div class="polos-table-wrapper">
+        <table class="data-table" id="polosTable">
+          <thead>
+            <tr>
+              <th>Polo</th>
+              <th>Carteira</th>
+              <th>Analista</th>
+              <th class="txt-right">Pagamentos</th>
+              <th class="txt-right">Meta Móvel</th>
+              <th class="txt-right">% Meta Móvel</th>
+            </tr>
+          </thead>
+          <tbody id="polosTableBody">
+            <tr>
+              <td colspan="6" class="table-empty">Aguardando carregamento de dados...</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="table-pagination">
+          <span class="pagination-info" id="paginationInfo">Mostrando 0-0 de 0 polos</span>
+          <div class="pagination-buttons">
+            <button class="pag-btn" id="prevPageBtn" disabled>&larr; Anterior</button>
+            <button class="pag-btn" id="nextPageBtn" disabled>Próximo &rarr;</button>
+          </div>
+        </div>
+      </div>
+</section>
+
+    
 
   </main>
 
-  <!-- FOOTER -->
-  <footer class="footer">
-    <div class="container">
-      <span>Dashboard de Metas · Dados via Google Sheets</span>
-      <span id="footer-records"></span>
-    </div>
-  </footer>
-
-  <script src="app.js"></script>
+  <script src="script.js"></script>
 </body>
+
 </html>
