@@ -100,6 +100,32 @@ function inlineTrim(str) {
   return str ? String(str).replace(/\s+/g, " ").trim() : "";
 }
 
+/** Escapa caracteres HTML perigosos antes de injetar texto vindo da planilha via innerHTML. */
+function escapeHTML(str) {
+  if (str == null) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
+ * Verifica se o nome de uma carteira "bate" com o termo de busca (data-busca),
+ * evitando falso positivo quando um nome é prefixo de outro
+ * (ex: "Operações I" é substring de "Operações II").
+ * Considera match apenas se for igual, ou se `busca` aparecer como palavra
+ * inteira (delimitada por espaço/início/fim) dentro do nome da carteira.
+ */
+function carteiraCorresponde(nomeCarteira, busca) {
+  const nome  = normalizar(nomeCarteira);
+  const alvo  = normalizar(busca);
+  if (nome === alvo) return true;
+  const regex = new RegExp(`(^|\\s)${alvo.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}($|\\s)`);
+  return regex.test(nome);
+}
+
 /** Mapeia colunas do cabeçalho por nome normalizado (sem acentos, maiúsculas). */
 function mapearColunas(cabecalho) {
   const idx = {};
@@ -159,16 +185,29 @@ function preencherGerencias(linhas) {
     const codigo = row.dataset.codigo || "";
 
     const linhaEncontrada = busca
-      ? dados.find(l => normalizar(l[idx["CARTEIRA"]]).includes(normalizar(busca)))
+      ? dados.find(l => carteiraCorresponde(l[idx["CARTEIRA"]], busca))
       : dados.find(l => extrairCodigo(l[idx["CARTEIRA"]]) === codigo);
 
-    const elPag = row.querySelector(".gerencia-pagantes");
-    const elPct = row.querySelector(".gerencia-pct");
+    const elPag         = row.querySelector(".gerencia-pagantes");
+    const elMetaMovel    = row.querySelector(".gerencia-metamovel");
+    const elPct          = row.querySelector(".gerencia-pct");
+    const elMetaEdital    = row.querySelector(".gerencia-metaedital");
+    const elPctEdital    = row.querySelector(".gerencia-pctedital");
 
-    if (!linhaEncontrada) { elPag.textContent = "--"; elPct.textContent = "--"; return; }
+    if (!linhaEncontrada) {
+      elPag.textContent = "--";
+      if (elMetaMovel)  elMetaMovel.textContent  = "--";
+      elPct.textContent = "--";
+      if (elMetaEdital) elMetaEdital.textContent = "--";
+      if (elPctEdital)  elPctEdital.textContent  = "--";
+      return;
+    }
 
     elPag.textContent = formatarNumero(parseNumeroBR(linhaEncontrada[idx["PAGANTES"]]));
+    if (elMetaMovel)  elMetaMovel.textContent  = formatarNumero(parseNumeroBR(linhaEncontrada[idx["META MOVEL"]]));
     elPct.textContent = formatarPercentual(parseNumeroBR(linhaEncontrada[idx["% META MOVEL"]]));
+    if (elMetaEdital) elMetaEdital.textContent = formatarNumero(parseNumeroBR(linhaEncontrada[idx["META EDITAL"]]));
+    if (elPctEdital)  elPctEdital.textContent  = formatarPercentual(parseNumeroBR(linhaEncontrada[idx["% META EDITAL"]]));
   });
 }
 
@@ -217,8 +256,8 @@ function renderizarDropdownCarteiras() {
     const item = document.createElement("div");
     item.className = "dropdown-item";
     item.innerHTML = `
-      <input type="checkbox" id="c_${i}" value="${carteira}">
-      <label for="c_${i}">${carteira}</label>
+      <input type="checkbox" id="c_${i}" value="${escapeHTML(carteira)}">
+      <label for="c_${i}">${escapeHTML(carteira)}</label>
     `;
     item.querySelector("input").addEventListener("change", e => {
       if (e.target.checked) carteirasSelecionadas.push(e.target.value);
@@ -281,9 +320,9 @@ function renderizarTabelaPolos() {
                  : "var(--vermelho-alerta)";
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td><strong>${item.polo}</strong></td>
-      <td>${item.carteira}</td>
-      <td>${item.analista}</td>
+      <td><strong>${escapeHTML(item.polo)}</strong></td>
+      <td>${escapeHTML(item.carteira)}</td>
+      <td>${escapeHTML(item.analista)}</td>
       <td class="txt-right" style="font-weight:700; color:var(--amarelo);">${formatarNumero(item.pagantes)}</td>
       <td class="txt-right">${formatarNumero(item.metaMovel)}</td>
       <td class="txt-right" style="font-weight:700; color:${corPct};">${formatarPercentual(item.pctMovel)}</td>
@@ -384,7 +423,7 @@ function filtrarPolosPorGerencia(row) {
   const codigo = row.dataset.codigo || "";
 
   return busca
-    ? dadosPolosGlobais.filter(item => normalizar(item.carteira).includes(normalizar(busca)))
+    ? dadosPolosGlobais.filter(item => carteiraCorresponde(item.carteira, busca))
     : dadosPolosGlobais.filter(item => extrairCodigo(item.carteira) === codigo);
 }
 
@@ -463,24 +502,33 @@ function renderizarInsights() {
   const melhorCarteira = Object.entries(contagemPorCarteira)
     .sort((a, b) => b[1] - a[1])[0];
 
-  // Polos abaixo de 50% da Meta Móvel
-  const abaixo50 = [...dadosPolosGlobais]
+  // Polos abaixo de 50% da Meta Móvel — considera apenas polos com base
+  // relevante (Meta Edital >= CORTE_BASE_MELHORIA), evitando que polos
+  // pequenos (ex: 2 alunos) distorçam o percentual e virem "falso alarme"
+  const CORTE_BASE_MELHORIA = 70;
+  const elegiveisMelhoria   = dadosPolosGlobais.filter(i => i.metaEdital >= CORTE_BASE_MELHORIA);
+
+  const abaixo50 = [...elegiveisMelhoria]
     .filter(i => i.pctMovel < 50)
     .sort((a, b) => a.pctMovel - b.pctMovel);
 
-  // Polo com maior gap absoluto (mais pagantes faltando)
-  const maiorGap = [...dadosPolosGlobais]
-    .map(i => ({ ...i, gap: Math.max(0, i.metaMovel - i.pagantes) }))
-    .sort((a, b) => b.gap - a.gap)[0];
+  // Polo com maior gap absoluto (mais pagantes faltando), só entre relevantes
+  const maiorGap = elegiveisMelhoria.length > 0
+    ? elegiveisMelhoria
+        .map(i => ({ ...i, gap: Math.max(0, i.metaMovel - i.pagantes) }))
+        .sort((a, b) => b.gap - a.gap)[0]
+    : null;
 
-  // Polo com maior meta mas pior % (potencial desperdiçado):
+  // Polo com maior meta mas pior % (potencial desperdiçado), só entre relevantes:
   // entre os polos com metaMovel no quartil superior, pegar o pior pctMovel
-  const metaOrdenada = [...dadosPolosGlobais].sort((a, b) => b.metaMovel - a.metaMovel);
+  const metaOrdenada = [...elegiveisMelhoria].sort((a, b) => b.metaMovel - a.metaMovel);
   const corteQuartil = Math.floor(metaOrdenada.length * 0.25);
   const grandesMetas = metaOrdenada.slice(0, Math.max(corteQuartil, 5));
-  const potencialDesperdico = [...grandesMetas].sort((a, b) => a.pctMovel - b.pctMovel)[0];
+  const potencialDesperdico = grandesMetas.length > 0
+    ? [...grandesMetas].sort((a, b) => a.pctMovel - b.pctMovel)[0]
+    : null;
 
-  // Carteira com mais polos críticos (abaixo de 50%)
+  // Carteira com mais polos críticos (abaixo de 50%, base relevante)
   const criticosPorCarteira = {};
   abaixo50.forEach(p => {
     criticosPorCarteira[p.carteira] = (criticosPorCarteira[p.carteira] || 0) + 1;
@@ -566,19 +614,22 @@ function renderizarInsights() {
   ══════════════════════════════════════════════ */
   const melhorias = [];
 
-  // 1. Totalizador: polos abaixo de 50%
+  // 1. Totalizador: polos abaixo de 50% (apenas com base relevante)
   if (abaixo50.length > 0) {
     const s = abaixo50.length === 1;
+    const pctBase = elegiveisMelhoria.length > 0
+      ? ((abaixo50.length / elegiveisMelhoria.length) * 100).toFixed(1)
+      : "0.0";
     melhorias.push({
       icone: "⚠️",
       titulo: `${abaixo50.length} polo${s ? "" : "s"} abaixo de 50% da Meta Móvel`,
-      detalhe: `${((abaixo50.length / total) * 100).toFixed(1)}% dos polos precisam de atenção prioritária`,
+      detalhe: `${pctBase}% dos polos com base consolidada precisam de atenção prioritária`,
     });
   } else {
     melhorias.push({
       icone: "👏",
-      titulo: "Nenhum polo abaixo de 50% da Meta Móvel",
-      detalhe: "Todos os polos estão acima do limiar crítico",
+      titulo: "Nenhum polo com base consolidada abaixo de 50% da Meta Móvel",
+      detalhe: "Todos os polos com Meta Edital relevante estão acima do limiar crítico",
     });
   }
 
@@ -646,9 +697,9 @@ function renderInsightItem(item) {
     <li class="insight-item">
       <span class="insight-icone">${item.icone}</span>
       <div class="insight-body">
-        <span class="insight-titulo">${item.titulo}</span>
-        <span class="insight-detalhe">${item.detalhe}</span>
-        ${item.sub ? `<span class="insight-sub">${item.sub}</span>` : ""}
+        <span class="insight-titulo">${escapeHTML(item.titulo)}</span>
+        <span class="insight-detalhe">${escapeHTML(item.detalhe)}</span>
+        ${item.sub ? `<span class="insight-sub">${escapeHTML(item.sub)}</span>` : ""}
       </div>
     </li>
   `;

@@ -202,31 +202,34 @@ body {
 }
 
 .gerencias-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.8rem;
   position: relative;
   z-index: 1;
 }
 
 .gerencias-col:first-child {
-  padding-right: 2rem;
-  border-right: 1px solid var(--cinza-borda);
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--cinza-borda);
 }
 
-.gerencias-col:last-child {
-  padding-left: 2rem;
+/* Permite rolagem horizontal em telas estreitas sem quebrar o alinhamento */
+.gerencias-col {
+  overflow-x: auto;
 }
 
-/* Layout em grid de 3 colunas fixas — título e linhas compartilham
+/* Layout em grid de 7 colunas fixas — título e linhas compartilham
    o mesmo template, garantindo alinhamento perfeito entre cabeçalho e dados */
 .gerencias-col-title,
 .gerencia-row {
   display: grid;
-  grid-template-columns: 1fr 5rem 6rem 1.6rem;
+  grid-template-columns: minmax(14rem, 1fr) repeat(5, minmax(5.4rem, 1fr)) 1.6rem;
+  gap: 0.4rem;
   align-items: center;
   padding: 0.7rem 0.5rem;
   border-bottom: 1px solid var(--cinza-borda);
+  min-width: 46rem;
 }
 
 .gerencia-row:last-child {
@@ -245,8 +248,7 @@ body {
   padding-top: 0;
 }
 
-.gerencias-col-title span:nth-child(2),
-.gerencias-col-title span:nth-child(3) {
+.gerencias-col-title span:nth-child(n+2) {
   text-align: right;
 }
 
@@ -273,7 +275,16 @@ body {
   text-align: right;
 }
 
-.gerencia-pct {
+.gerencia-metamovel,
+.gerencia-metaedital {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--texto-claro);
+  text-align: right;
+}
+
+.gerencia-pct,
+.gerencia-pctedital {
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--texto-suave);
@@ -794,10 +805,6 @@ body {
 
   .panel-bg-text {
     display: none;
-  }
-
-  .gerencias-grid {
-    grid-template-columns: 1fr;
   }
 }
 
