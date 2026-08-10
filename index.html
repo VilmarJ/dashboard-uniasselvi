@@ -6,25 +6,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dashboard de Metas | UNIASSELVI</title>
   <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 
 <body>
 
   <main class="page">
 
-<section class="panel panel--top-dashboard">
+    <section class="panel panel--top-dashboard">
       <div class="panel-bg-text">UNIASSELVI</div>
-      
+
       <div class="panel-header">
         <div class="brand">
           <span class="brand-icon">📊</span>
           <div class="brand-text">
             <h1>Pagamentos</h1>
-            <p class="brand-sub">Monitoramento em tempo real do volume de pagantes com base no relatório do portal comercial</p>
+            <p class="brand-sub">Monitoramento em tempo real do volume de pagantes com base no relatório do portal comercial.</p>
           </div>
         </div>
-        
-        <!-- Grupo de Atualização: Movido para o topo direito de forma integrada -->
+
         <div class="update-wrapper">
           <div class="timestamp-badge">
             <span class="status-dot" id="statusDot"></span>
@@ -38,10 +38,10 @@
         </div>
       </div>
 
-      <!-- Nova estrutura de Grid em Grupos Modernos -->
+      <!-- Cards KPI: Volume Geral | Meta Móvel | % Meta Móvel | Meta Edital | % Meta Edital -->
       <div class="panel-stats-grouped" id="panelStats">
-        
-        <!-- KPI Principal Solitário -->
+
+        <!-- KPI Principal: Volume Geral -->
         <div class="stat-group stat-group--main">
           <span class="stat-label-group">Volume Geral</span>
           <div class="stat-main-box">
@@ -50,7 +50,7 @@
           </div>
         </div>
 
-        <!-- Grupo 1: Meta Móvel -->
+        <!-- Grupo: Meta Móvel -->
         <div class="stat-group">
           <span class="stat-label-group">Meta Móvel</span>
           <div class="stat-split-box">
@@ -65,16 +65,16 @@
           </div>
         </div>
 
-        <!-- Grupo 2: Meta Ciclo -->
+        <!-- Grupo: Meta Edital -->
         <div class="stat-group">
-          <span class="stat-label-group">Meta Ciclo (10 JUL)</span>
+          <span class="stat-label-group">Meta Edital</span>
           <div class="stat-split-box">
             <div class="stat-sub-item">
-              <span class="stat-value-grouped" id="cardMetaCiclo">--</span>
-              <span class="stat-sublabel">Alvo Final</span>
+              <span class="stat-value-grouped" id="cardMetaEdital">--</span>
+              <span class="stat-sublabel">Alvo</span>
             </div>
             <div class="stat-sub-item border-left">
-              <span class="stat-value-grouped percent" id="cardMetaCicloPct">--</span>
+              <span class="stat-value-grouped percent" id="cardMetaEditalPct">--</span>
               <span class="stat-sublabel">Progresso</span>
             </div>
           </div>
@@ -88,80 +88,76 @@
         <div class="brand">
           <span class="brand-icon">🗂️</span>
           <div class="brand-text">
-            <h1>Carteiras e Operações</h1>
-            <p class="brand-sub">Pagantes e % Meta Móvel por gerência</p>
+            <h1>Gerências</h1>
+            <p class="brand-sub">Resumo dos indicadores por gerência</p>
           </div>
         </div>
       </div>
 
       <div class="gerencias-grid">
         <div class="gerencias-col">
-          <h2 class="gerencias-col-title">Carteira</h2>
-          <div class="gerencia-row" data-codigo="100000090"><span class="gerencia-nome">Gerente Florença <small>Kelly
-                Strutz</small></span><span class="gerencia-pagantes">--</span><span class="gerencia-pct">--</span></div>
-          <div class="gerencia-row" data-codigo="17843"><span class="gerencia-nome">Gerente Gênova <small>Jéssica
-                Aparecida Leoni</small></span><span class="gerencia-pagantes">--</span><span
-              class="gerencia-pct">--</span></div>
-          <div class="gerencia-row" data-codigo="18881"><span class="gerencia-nome">Gerente Milão <small>João
-                Block</small></span><span class="gerencia-pagantes">--</span><span class="gerencia-pct">--</span></div>
-          <div class="gerencia-row" data-codigo="100000929"><span class="gerencia-nome">Gerente Roma <small>Marina
-                Veloso</small></span><span class="gerencia-pagantes">--</span><span class="gerencia-pct">--</span></div>
-          <div class="gerencia-row" data-codigo="13173"><span class="gerencia-nome">Gerente Veneza <small>Reginei
-                Novais</small></span><span class="gerencia-pagantes">--</span><span class="gerencia-pct">--</span></div>
+          <div class="gerencias-col-title">
+            <span>Operações</span>
+            <span>Pagantes</span>
+            <span>% Meta Móvel</span>
+          </div>
+          <div class="gerencia-row" data-codigo="100000090"><span class="gerencia-nome">Gerente Florença <small>Kelly Strutz</small></span><span class="gerencia-pagantes">--</span><span class="gerencia-pct">--</span><button class="gerencia-export-btn" title="Baixar polos desta carteira em Excel" aria-label="Baixar Excel">⬇</button></div>
+          <div class="gerencia-row" data-codigo="17843"><span class="gerencia-nome">Gerente Gênova <small>Jéssica Aparecida Leoni</small></span><span class="gerencia-pagantes">--</span><span class="gerencia-pct">--</span><button class="gerencia-export-btn" title="Baixar polos desta carteira em Excel" aria-label="Baixar Excel">⬇</button></div>
+          <div class="gerencia-row" data-codigo="18881"><span class="gerencia-nome">Gerente Milão <small>João Block</small></span><span class="gerencia-pagantes">--</span><span class="gerencia-pct">--</span><button class="gerencia-export-btn" title="Baixar polos desta carteira em Excel" aria-label="Baixar Excel">⬇</button></div>
+          <div class="gerencia-row" data-codigo="100000929"><span class="gerencia-nome">Gerente Roma <small>Marina Veloso</small></span><span class="gerencia-pagantes">--</span><span class="gerencia-pct">--</span><button class="gerencia-export-btn" title="Baixar polos desta carteira em Excel" aria-label="Baixar Excel">⬇</button></div>
+          <div class="gerencia-row" data-codigo="13173"><span class="gerencia-nome">Gerente Veneza <small>Reginei Novais</small></span><span class="gerencia-pagantes">--</span><span class="gerencia-pct">--</span><button class="gerencia-export-btn" title="Baixar polos desta carteira em Excel" aria-label="Baixar Excel">⬇</button></div>
         </div>
 
         <div class="gerencias-col">
-          <h2 class="gerencias-col-title">Operações</h2>
-          <div class="gerencia-row" data-codigo="100029673"><span class="gerencia-nome">Gerente Diretoria OP
-              <small>Alessandra Baron Eugenio</small></span><span class="gerencia-pagantes">--</span><span
-              class="gerencia-pct">--</span></div>
-          <div class="gerencia-row" data-codigo="100000217"><span class="gerencia-nome">Gerente Operações I <small>Ary
-                Oliveira Filho</small></span><span class="gerencia-pagantes">--</span><span
-              class="gerencia-pct">--</span></div>
-          <div class="gerencia-row" data-codigo="100082540"><span class="gerencia-nome">Gerente Operações II
-              <small>Lucas Aguiar</small></span><span class="gerencia-pagantes">--</span><span
-              class="gerencia-pct">--</span></div>
+          <div class="gerencias-col-title">
+            <span>Carteira</span>
+            <span>Pagantes</span>
+            <span>% Meta Móvel</span>
+          </div>
+          <div class="gerencia-row" data-codigo="100029673"><span class="gerencia-nome">Gerente Diretoria OP <small>Alessandra Baron Eugenio</small></span><span class="gerencia-pagantes">--</span><span class="gerencia-pct">--</span><button class="gerencia-export-btn" title="Baixar polos desta carteira em Excel" aria-label="Baixar Excel">⬇</button></div>
+          <div class="gerencia-row" data-busca="Operações I"><span class="gerencia-nome">Gerente Operações I <small>Ary Oliveira Filho</small></span><span class="gerencia-pagantes">--</span><span class="gerencia-pct">--</span><button class="gerencia-export-btn" title="Baixar polos desta carteira em Excel" aria-label="Baixar Excel">⬇</button></div>
+          <div class="gerencia-row" data-busca="Operações II"><span class="gerencia-nome">Gerente Operações II <small>Ary Oliveira Filho</small></span><span class="gerencia-pagantes">--</span><span class="gerencia-pct">--</span><button class="gerencia-export-btn" title="Baixar polos desta carteira em Excel" aria-label="Baixar Excel">⬇</button></div>
         </div>
       </div>
     </section>
 
-
-
-<section class="panel panel--rankings">
-  <div class="rankings-main-header">
-    <span class="rankings-main-icon">🏆</span>
-    <h1 class="rankings-main-title">Rankings dos Polos</h1>
-    <p class="rankings-main-sub">Top 10 polos com maior volume de pagamentos</p>
-    <div class="rankings-header-divider">
-      <span class="rankings-header-divider-dot"></span>
-      <span class="rankings-header-divider-line"></span>
-      <span class="rankings-header-divider-dot"></span>
-    </div>
-  </div>
-
-  <div class="rankings-grid">
-    <!-- Coluna Esquerda: Top 10 Maiores Pagantes -->
-  <div class="ranking-col">
-        <div class="polos-table-wrapper" style="background: transparent; border: none;">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th style="width: 3rem; text-align: center;">#</th>
-                <th>Polo / Carteira</th>
-                <th class="txt-right" style="width: 8rem;">Pagamentos</th>
-                <th class="txt-right" style="width: 8rem;">% Meta Móvel</th>
-              </tr>
-            </thead>
-            <tbody id="rankingTopPagantes">
-              <tr>
-                <td colspan="4" class="table-empty">Aguardando dados...</td>
-              </tr>
-            </tbody>
-          </table>
+    <!-- SEÇÃO DE INSIGHTS (substituiu Rankings) -->
+    <section class="panel panel--insights">
+      <div class="rankings-main-header">
+        <span class="rankings-main-icon">💡</span>
+        <h1 class="rankings-main-title">Insights dos Polos</h1>
+        <p class="rankings-main-sub">Análise de pontos positivos e possíveis pontos de melhoria.</p>
+        <div class="rankings-header-divider">
+          <span class="rankings-header-divider-dot"></span>
+          <span class="rankings-header-divider-line"></span>
+          <span class="rankings-header-divider-dot"></span>
         </div>
       </div>
-  </div>
-</section>
+
+      <div class="insights-grid">
+        <!-- Coluna positiva -->
+        <div class="insights-col insights-col--positivo">
+          <div class="insights-col-header">
+            <span class="insights-col-icon">🏆</span>
+            <h2 class="insights-col-title">Destaques Positivos</h2>
+          </div>
+          <ul class="insights-list" id="insightPositivos">
+            <li class="insight-item insight-item--loading">Aguardando dados...</li>
+          </ul>
+        </div>
+
+        <!-- Coluna de melhoria -->
+        <div class="insights-col insights-col--melhoria">
+          <div class="insights-col-header">
+            <span class="insights-col-icon">⚠️</span>
+            <h2 class="insights-col-title">Pontos de Melhoria</h2>
+          </div>
+          <ul class="insights-list" id="insightMelhorias">
+            <li class="insight-item insight-item--loading">Aguardando dados...</li>
+          </ul>
+        </div>
+      </div>
+    </section>
 
     <section class="panel panel--polos">
       <div class="panel-header">
@@ -169,7 +165,7 @@
           <span class="brand-icon">🏫</span>
           <div class="brand-text">
             <h1>Visão Detalhada dos Polos</h1>
-            <p class="brand-sub">Filtros dinâmicos cruzando a aba de Abertura</p>
+            <p class="brand-sub">Consulta detalhada dos polos e suas respectivas informações</p>
           </div>
         </div>
       </div>
@@ -179,18 +175,18 @@
           <span class="search-icon">🔍</span>
           <input type="text" id="searchGeral" class="filter-input-top" placeholder="Buscar por polo, carteira, analista...">
         </div>
-        
+
         <div class="select-wrapper">
-          <div class="select-wrapper">
           <div class="custom-select-trigger" id="carteiraSelectTrigger">Todas as carteiras</div>
-          <div class="custom-select-dropdown" id="carteiraDropdown">
-            </div>
-        </div>
-          <div class="custom-select-dropdown" id="parceiroDropdown">
-            </div>
+          <div class="custom-select-dropdown" id="carteiraDropdown"></div>
         </div>
 
         <button class="clear-filters-btn" id="clearFiltersBtn">Limpar</button>
+
+        <button class="export-excel-btn" id="exportExcelBtn" disabled>
+          <span class="export-excel-icon">⬇️</span>
+          <span id="exportExcelLabel">Exportar Excel</span>
+        </button>
       </div>
 
       <div class="polos-table-wrapper">
@@ -220,9 +216,7 @@
           </div>
         </div>
       </div>
-</section>
-
-    
+    </section>
 
   </main>
 
