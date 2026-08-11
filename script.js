@@ -4,9 +4,11 @@
 const SPREADSHEET_ID  = "10Lts1kA9GD1bjSlR1HoLi3mIJBBCXc58tf-jCgOq-lc";
 const GID_POLO        = "0";           // Aba POLO (primeira aba)
 const GID_CONSOLIDADO = "220239882";   // Aba CONSOLIDADO
+const GID_ALUNO       = "274742416";   // Aba ALUNO
 
 const URL_POLO        = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv&gid=${GID_POLO}`;
 const URL_CONSOLIDADO = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv&gid=${GID_CONSOLIDADO}`;
+const URL_ALUNO       = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv&gid=${GID_ALUNO}`;
 
 /* ============================================================
    ELEMENTOS DOM
@@ -42,6 +44,8 @@ const exportExcelLabel = document.getElementById("exportExcelLabel");
    ESTADO GLOBAL
    ============================================================ */
 let dadosPolosGlobais     = [];
+let dadosAlunosGlobais    = [];   // Linhas brutas da aba ALUNO (sem cabeçalho)
+let cabecalhoAlunos       = [];   // Cabeçalho da aba ALUNO
 let carteirasDisponiveis  = [];
 let carteirasSelecionadas = [];
 let paginaAtual           = 1;
@@ -248,6 +252,15 @@ function processarAbaPolo(linhas) {
 }
 
 /* ============================================================
+   ABA ALUNO — armazena as linhas brutas para uso no export
+   ============================================================ */
+function processarAbaAluno(linhas) {
+  if (linhas.length < 2) return;
+  cabecalhoAlunos    = linhas[0];
+  dadosAlunosGlobais = linhas.slice(1).filter(l => l.some(c => c.trim() !== ""));
+}
+
+/* ============================================================
    DROPDOWN DE CARTEIRAS
    ============================================================ */
 function renderizarDropdownCarteiras() {
@@ -356,7 +369,8 @@ function atualizarBotaoExport(totalFiltrado) {
     : "Exportar Excel";
 }
 
-/** Monta e baixa o arquivo .xlsx a partir de uma lista de polos (itens de dadosPolosGlobais). */
+/** Monta e baixa o arquivo .xlsx a partir de uma lista de polos (itens de dadosPolosGlobais).
+ *  Inclui uma segunda aba "Alunos" com os alunos cujo CODIGO_DO_POLO_ATUAL bate com os polos exportados. */
 function gerarPlanilhaExcel(dados, nomeArquivoBase) {
   const linhasExport = dados.map(item => ({
     "COD_POLO":        item.codPolo,
@@ -373,10 +387,10 @@ function gerarPlanilhaExcel(dados, nomeArquivoBase) {
     "% META CICLO":    item.pctCiclo / 100,
   }));
 
-  const worksheet = XLSX.utils.json_to_sheet(linhasExport);
+  const worksheetPolos = XLSX.utils.json_to_sheet(linhasExport);
 
   // Largura das colunas para leitura confortável
-  worksheet["!cols"] = [
+  worksheetPolos["!cols"] = [
     { wch: 12 }, { wch: 30 }, { wch: 22 }, { wch: 26 }, { wch: 24 },
     { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
     { wch: 14 }, { wch: 14 },
@@ -387,13 +401,45 @@ function gerarPlanilhaExcel(dados, nomeArquivoBase) {
   const totalLinhas = linhasExport.length;
   colunasPercentual.forEach(col => {
     for (let r = 2; r <= totalLinhas + 1; r++) {
-      const cell = worksheet[`${col}${r}`];
+      const cell = worksheetPolos[`${col}${r}`];
       if (cell) cell.z = "0.00%";
     }
   });
 
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Polos");
+  XLSX.utils.book_append_sheet(workbook, worksheetPolos, "Polos");
+
+  // ── Aba Alunos: filtra pelos códigos de polo exportados ──
+  if (dadosAlunosGlobais.length > 0 && cabecalhoAlunos.length > 0) {
+    const idxPolo = cabecalhoAlunos.findIndex(h =>
+      h.trim().toUpperCase() === "CODIGO_DO_POLO_ATUAL"
+    );
+
+    if (idxPolo !== -1) {
+      // Conjunto de códigos dos polos exportados (como string para comparar com CSV)
+      const codigosExportados = new Set(dados.map(item => String(item.codPolo).trim()));
+
+      const linhasAlunos = dadosAlunosGlobais.filter(linha =>
+        codigosExportados.has(String(linha[idxPolo] ?? "").trim())
+      );
+
+      // Monta array de objetos usando o cabeçalho original da aba ALUNO
+      const alunosExport = linhasAlunos.map(linha => {
+        const obj = {};
+        cabecalhoAlunos.forEach((col, i) => {
+          obj[col.trim()] = linha[i] ?? "";
+        });
+        return obj;
+      });
+
+      if (alunosExport.length > 0) {
+        const worksheetAlunos = XLSX.utils.json_to_sheet(alunosExport, {
+          header: cabecalhoAlunos.map(c => c.trim()),
+        });
+        XLSX.utils.book_append_sheet(workbook, worksheetAlunos, "Alunos");
+      }
+    }
+  }
 
   const agora   = new Date();
   const dataStr = agora.toLocaleDateString("pt-BR").split("/").join("-");
@@ -711,14 +757,21 @@ function renderInsightItem(item) {
 async function carregarDashboard() {
   setStatus("loading");
   try {
-    const [resConsolidado, resPolo] = await Promise.all([
+    const [resConsolidado, resPolo, resAluno] = await Promise.all([
       fetch(URL_CONSOLIDADO),
       fetch(URL_POLO),
+      fetch(URL_ALUNO),
     ]);
     if (!resConsolidado.ok || !resPolo.ok) throw new Error("Erro de conexão com a planilha.");
 
     const linhasConsolidado = parseCSV(await resConsolidado.text());
     const linhasPolo        = parseCSV(await resPolo.text());
+
+    // Aba ALUNO — falha silenciosa para não bloquear o dashboard
+    if (resAluno.ok) {
+      try { processarAbaAluno(parseCSV(await resAluno.text())); }
+      catch (e) { console.warn("[Dashboard] Não foi possível carregar a aba ALUNO:", e); }
+    }
 
     // ── KPIs: usa a linha "GERAL - TOTAL (BASE DE DADOS)" (A17) ──
     // Busca pela linha que contém "TOTAL" para garantir robustez
