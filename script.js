@@ -4,7 +4,7 @@
 const SPREADSHEET_ID  = "10Lts1kA9GD1bjSlR1HoLi3mIJBBCXc58tf-jCgOq-lc";
 const GID_POLO        = "0";           // Aba POLO (primeira aba)
 const GID_CONSOLIDADO = "220239882";   // Aba CONSOLIDADO
-const GID_ALUNO       = "879265867";   // Aba ALUNO (carregada sob demanda, apenas ao exportar)
+const GID_ALUNO       = "1934861607";   // Aba ALUNO (carregada sob demanda, apenas ao exportar)
 
 const URL_POLO        = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv&gid=${GID_POLO}`;
 const URL_CONSOLIDADO = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv&gid=${GID_CONSOLIDADO}`;
@@ -483,6 +483,11 @@ async function gerarPlanilhaExcel(dados, nomeArquivoBase, btnRef, labelRef) {
   }
 }
 
+/* Limite a partir do qual a aba Alunos é dividida em várias partes
+   para evitar estouro de memória no navegador (~185 mil linhas). */
+const LIMITE_ALUNOS_POR_ABA = 45000;
+const LIMITE_AVISO_VOLUME   = 50000;
+
 async function _gerarPlanilhaExcelInterna(dados, nomeArquivoBase, btnRef, labelRef) {
   setExportando(btnRef, labelRef, true, "Preparando Polos…");
   avancarModalExport("preparar");
@@ -524,7 +529,7 @@ async function _gerarPlanilhaExcelInterna(dados, nomeArquivoBase, btnRef, labelR
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheetPolos, "Polos");
 
-  // ── Aba Alunos: lazy load + chunks ──
+  // ── Aba Alunos: lazy load + chunks otimizados ──
   setExportando(btnRef, labelRef, true, "Carregando Alunos…");
   avancarModalExport("carregar");
   await garantirAlunosCarregados();
@@ -536,27 +541,73 @@ async function _gerarPlanilhaExcelInterna(dados, nomeArquivoBase, btnRef, labelR
 
     if (idxPolo !== -1) {
       const codigosExportados = new Set(dados.map(item => String(item.codPolo).trim()));
+      const headerLimpo = cabecalhoAlunos.map(c => c.trim());
 
-      // Filtra e monta os objetos em uma única passagem, evitando cópias
-      // intermediárias do array completo (185 mil linhas travava a aba).
+      // Filtra + monta AOA em uma única passagem por chunks.
+      // Evita o .filter() completo que criava um array intermediário enorme.
       setExportando(btnRef, labelRef, true, "Filtrando e montando Alunos…");
       avancarModalExport("filtrar");
-      const alunosExport = await processarEmChunks(
-        dadosAlunosGlobais.filter(linha => codigosExportados.has(String(linha[idxPolo] ?? "").trim())),
-        500,
-        linha => {
-          const obj = {};
-          cabecalhoAlunos.forEach((col, i) => { obj[col.trim()] = linha[i] ?? ""; });
-          return obj;
+
+      const alunosAOA = []; // array de arrays (mais leve que array de objetos)
+      const TAMANHO_CHUNK = 1000;
+
+      await new Promise(resolve => {
+        let i = 0;
+        function processarLote() {
+          const fim = Math.min(i + TAMANHO_CHUNK, dadosAlunosGlobais.length);
+          for (; i < fim; i++) {
+            const linha = dadosAlunosGlobais[i];
+            const cod = String(linha[idxPolo] ?? "").trim();
+            if (codigosExportados.has(cod)) {
+              // Monta a linha já como array (aoa), sem criar objeto intermediário
+              alunosAOA.push(headerLimpo.map((_, colIdx) => linha[colIdx] ?? ""));
+            }
+          }
+          if (i < dadosAlunosGlobais.length) {
+            setTimeout(processarLote, 0); // cede controle ao navegador
+          } else {
+            resolve();
+          }
         }
-      );
+        processarLote();
+      });
+
+      const totalAlunos = alunosAOA.length;
       avancarModalExport("montar");
 
-      if (alunosExport.length > 0) {
-        const worksheetAlunos = XLSX.utils.json_to_sheet(alunosExport, {
-          header: cabecalhoAlunos.map(c => c.trim()),
-        });
-        XLSX.utils.book_append_sheet(workbook, worksheetAlunos, "Alunos");
+      if (totalAlunos > 0) {
+        // Volume alto → avisa e divide em várias abas para não estourar memória
+        if (totalAlunos > LIMITE_AVISO_VOLUME) {
+          exportModalSub.textContent =
+            `Volume alto (${totalAlunos.toLocaleString("pt-BR")} alunos). Dividindo em partes…`;
+        }
+
+        if (totalAlunos <= LIMITE_ALUNOS_POR_ABA) {
+          // Caso normal: uma única aba "Alunos"
+          const sheetData = [headerLimpo, ...alunosAOA];
+          const worksheetAlunos = XLSX.utils.aoa_to_sheet(sheetData);
+          XLSX.utils.book_append_sheet(workbook, worksheetAlunos, "Alunos");
+        } else {
+          // Volume grande: divide em várias abas (Alunos_1, Alunos_2, …)
+          const totalPartes = Math.ceil(totalAlunos / LIMITE_ALUNOS_POR_ABA);
+
+          for (let p = 0; p < totalPartes; p++) {
+            const ini = p * LIMITE_ALUNOS_POR_ABA;
+            const fim = Math.min(ini + LIMITE_ALUNOS_POR_ABA, totalAlunos);
+            const parte = alunosAOA.slice(ini, fim);
+
+            const sheetData = [headerLimpo, ...parte];
+            const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+            const nomeAba = `Alunos_${p + 1}`;
+            XLSX.utils.book_append_sheet(workbook, worksheet, nomeAba);
+
+            // Cede o event loop entre partes para não travar a UI
+            await new Promise(r => setTimeout(r, 0));
+          }
+        }
+
+        // Libera a referência grande o quanto antes
+        alunosAOA.length = 0;
       }
     }
   }
@@ -570,7 +621,7 @@ async function _gerarPlanilhaExcelInterna(dados, nomeArquivoBase, btnRef, labelR
   const dataStr = agora.toLocaleDateString("pt-BR").split("/").join("-");
   const horaStr = agora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }).replace(":", "h");
 
-  XLSX.writeFile(workbook, `${nomeArquivoBase}_${dataStr}_${horaStr}.xlsx`, { compression: true });
+  XLSX.writeFile(workbook, `${nomeArquivoBase}_${dataStr}_${horaStr}.xlsx`);
 }
 
 async function exportarPolosParaExcel() {
