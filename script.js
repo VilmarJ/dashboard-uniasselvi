@@ -4,11 +4,11 @@
 const SPREADSHEET_ID  = "10Lts1kA9GD1bjSlR1HoLi3mIJBBCXc58tf-jCgOq-lc";
 const GID_POLO        = "0";           // Aba POLO (primeira aba)
 const GID_CONSOLIDADO = "220239882";   // Aba CONSOLIDADO
-const GID_ALUNO       = "274742416";   // Aba ALUNO
+const GID_ALUNO       = "1934861607";   // Aba ALUNO (carregada sob demanda, apenas ao exportar)
 
 const URL_POLO        = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv&gid=${GID_POLO}`;
 const URL_CONSOLIDADO = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv&gid=${GID_CONSOLIDADO}`;
-const URL_ALUNO       = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv&gid=${GID_ALUNO}`;
+const URL_ALUNO       = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv&gid=${GID_ALUNO}`; // Lazy: só usado no export
 
 /* ============================================================
    ELEMENTOS DOM
@@ -44,8 +44,9 @@ const exportExcelLabel = document.getElementById("exportExcelLabel");
    ESTADO GLOBAL
    ============================================================ */
 let dadosPolosGlobais     = [];
-let dadosAlunosGlobais    = [];   // Linhas brutas da aba ALUNO (sem cabeçalho)
+let dadosAlunosGlobais    = [];   // Linhas brutas da aba ALUNO (sem cabeçalho) — carregado lazy
 let cabecalhoAlunos       = [];   // Cabeçalho da aba ALUNO
+let alunosCarregados      = false; // Flag: aba ALUNO já foi buscada?
 let carteirasDisponiveis  = [];
 let carteirasSelecionadas = [];
 let paginaAtual           = 1;
@@ -253,6 +254,7 @@ function processarAbaPolo(linhas) {
 
 /* ============================================================
    ABA ALUNO — armazena as linhas brutas para uso no export
+   Não é chamada no carregamento inicial (lazy load).
    ============================================================ */
 function processarAbaAluno(linhas) {
   if (linhas.length < 2) return;
@@ -369,10 +371,65 @@ function atualizarBotaoExport(totalFiltrado) {
     : "Exportar Excel";
 }
 
-/** Monta e baixa o arquivo .xlsx a partir de uma lista de polos (itens de dadosPolosGlobais).
- *  Inclui uma segunda aba "Alunos" com os alunos cujo CODIGO_DO_POLO_ATUAL bate com os polos exportados. */
-function gerarPlanilhaExcel(dados, nomeArquivoBase) {
-  const linhasExport = dados.map(item => ({
+/* ============================================================
+   EXPORT — feedback visual no botão durante geração
+   ============================================================ */
+function setExportando(btn, label, ativo, mensagem = "") {
+  if (!btn) return;
+  btn.disabled = ativo;
+  if (label) label.textContent = ativo ? mensagem : `Exportar Excel (${getDadosFiltrados().length})`;
+  btn.style.opacity = ativo ? "0.7" : "";
+  btn.style.cursor  = ativo ? "wait" : "";
+}
+
+/* ============================================================
+   LAZY LOAD — aba ALUNO só é buscada na primeira exportação
+   ============================================================ */
+async function garantirAlunosCarregados() {
+  if (alunosCarregados) return; // já na memória, reutiliza
+  try {
+    const res = await fetch(URL_ALUNO);
+    if (res.ok) {
+      processarAbaAluno(parseCSV(await res.text()));
+    }
+  } catch (e) {
+    console.warn("[Dashboard] Não foi possível carregar a aba ALUNO:", e);
+  } finally {
+    alunosCarregados = true; // marca mesmo em falha — evita retry infinito
+  }
+}
+
+/* ============================================================
+   PROCESSAMENTO EM CHUNKS — libera a thread entre lotes
+   Resolve o travamento/crash em PCs com pouca memória.
+   ============================================================ */
+function processarEmChunks(array, tamanhoChunk, transformFn) {
+  return new Promise(resolve => {
+    const resultado = [];
+    let i = 0;
+
+    function processar() {
+      const fim = Math.min(i + tamanhoChunk, array.length);
+      for (; i < fim; i++) resultado.push(transformFn(array[i]));
+
+      if (i < array.length) {
+        setTimeout(processar, 0); // cede controle ao navegador entre lotes
+      } else {
+        resolve(resultado);
+      }
+    }
+    processar();
+  });
+}
+
+/** Monta e baixa o arquivo .xlsx a partir de uma lista de polos.
+ *  A aba ALUNO é carregada via lazy load na primeira exportação.
+ *  O processamento é feito em chunks para não travar o navegador. */
+async function gerarPlanilhaExcel(dados, nomeArquivoBase, btnRef, labelRef) {
+  setExportando(btnRef, labelRef, true, "Preparando Polos…");
+
+  // ── Aba Polos em chunks (500 linhas por vez) ──
+  const linhasExport = await processarEmChunks(dados, 500, item => ({
     "COD_POLO":        item.codPolo,
     "POLO":            item.polo,
     "PARCEIRO":        item.parceiro,
@@ -389,15 +446,14 @@ function gerarPlanilhaExcel(dados, nomeArquivoBase) {
 
   const worksheetPolos = XLSX.utils.json_to_sheet(linhasExport);
 
-  // Largura das colunas para leitura confortável
   worksheetPolos["!cols"] = [
     { wch: 12 }, { wch: 30 }, { wch: 22 }, { wch: 26 }, { wch: 24 },
     { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
     { wch: 14 }, { wch: 14 },
   ];
 
-  // Formata as colunas de percentual como % nativo do Excel
-  const colunasPercentual = ["H", "J", "L"]; // % META EDITAL, % META MÓVEL, % META CICLO
+  // Formata colunas de percentual como % nativo do Excel
+  const colunasPercentual = ["H", "J", "L"];
   const totalLinhas = linhasExport.length;
   colunasPercentual.forEach(col => {
     for (let r = 2; r <= totalLinhas + 1; r++) {
@@ -409,30 +465,33 @@ function gerarPlanilhaExcel(dados, nomeArquivoBase) {
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheetPolos, "Polos");
 
-  // ── Aba Alunos: filtra pelos códigos de polo exportados ──
+  // ── Aba Alunos: lazy load + chunks ──
+  setExportando(btnRef, labelRef, true, "Carregando Alunos…");
+  await garantirAlunosCarregados();
+
   if (dadosAlunosGlobais.length > 0 && cabecalhoAlunos.length > 0) {
     const idxPolo = cabecalhoAlunos.findIndex(h =>
       h.trim().toUpperCase() === "CODIGO_DO_POLO_ATUAL"
     );
 
     if (idxPolo !== -1) {
-      // Conjunto de códigos dos polos exportados (como string para comparar com CSV)
       const codigosExportados = new Set(dados.map(item => String(item.codPolo).trim()));
 
-      const linhasAlunos = dadosAlunosGlobais.filter(linha =>
-        codigosExportados.has(String(linha[idxPolo] ?? "").trim())
-      );
+      // Filtra em chunks para não travar em bases grandes
+      setExportando(btnRef, labelRef, true, "Filtrando Alunos…");
+      const linhasAlunos = await processarEmChunks(dadosAlunosGlobais, 1000, linha => linha)
+        .then(todas => todas.filter(linha =>
+          codigosExportados.has(String(linha[idxPolo] ?? "").trim())
+        ));
 
-      // Monta array de objetos usando o cabeçalho original da aba ALUNO
-      const alunosExport = linhasAlunos.map(linha => {
-        const obj = {};
-        cabecalhoAlunos.forEach((col, i) => {
-          obj[col.trim()] = linha[i] ?? "";
+      if (linhasAlunos.length > 0) {
+        setExportando(btnRef, labelRef, true, "Montando planilha…");
+        const alunosExport = await processarEmChunks(linhasAlunos, 500, linha => {
+          const obj = {};
+          cabecalhoAlunos.forEach((col, i) => { obj[col.trim()] = linha[i] ?? ""; });
+          return obj;
         });
-        return obj;
-      });
 
-      if (alunosExport.length > 0) {
         const worksheetAlunos = XLSX.utils.json_to_sheet(alunosExport, {
           header: cabecalhoAlunos.map(c => c.trim()),
         });
@@ -441,19 +500,24 @@ function gerarPlanilhaExcel(dados, nomeArquivoBase) {
     }
   }
 
+  // ── Grava o arquivo ──
+  setExportando(btnRef, labelRef, true, "Gerando arquivo…");
+  await new Promise(r => setTimeout(r, 0)); // cede uma última vez antes do writeFile
+
   const agora   = new Date();
   const dataStr = agora.toLocaleDateString("pt-BR").split("/").join("-");
   const horaStr = agora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }).replace(":", "h");
 
   XLSX.writeFile(workbook, `${nomeArquivoBase}_${dataStr}_${horaStr}.xlsx`);
+  setExportando(btnRef, labelRef, false);
 }
 
-function exportarPolosParaExcel() {
+async function exportarPolosParaExcel() {
   const dados = getDadosFiltrados();
   if (dados.length === 0) return;
 
   const sufixoFiltro = (searchGeralInput.value.trim() || carteirasSelecionadas.length > 0) ? "_filtrado" : "";
-  gerarPlanilhaExcel(dados, `polos_uniasselvi${sufixoFiltro}`);
+  await gerarPlanilhaExcel(dados, `polos_uniasselvi${sufixoFiltro}`, exportExcelBtn, exportExcelLabel);
 }
 
 exportExcelBtn.addEventListener("click", exportarPolosParaExcel);
@@ -481,7 +545,7 @@ function slugificar(texto) {
     .toLowerCase();
 }
 
-function exportarPolosDaGerencia(row) {
+async function exportarPolosDaGerencia(row, btn) {
   const nomeGerencia = row.querySelector(".gerencia-nome").childNodes[0].textContent.trim();
 
   if (dadosPolosGlobais.length === 0) {
@@ -495,13 +559,19 @@ function exportarPolosDaGerencia(row) {
     return;
   }
 
-  gerarPlanilhaExcel(dados, `polos_${slugificar(nomeGerencia)}`);
+  // Desabilita o botão da gerência durante o export para evitar duplo clique
+  if (btn) { btn.disabled = true; btn.textContent = "⏳"; }
+  try {
+    await gerarPlanilhaExcel(dados, `polos_${slugificar(nomeGerencia)}`);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "⬇"; }
+  }
 }
 
 gerenciaExportBtns.forEach(btn => {
   btn.addEventListener("click", e => {
     e.stopPropagation();
-    exportarPolosDaGerencia(btn.closest(".gerencia-row"));
+    exportarPolosDaGerencia(btn.closest(".gerencia-row"), btn);
   });
 });
 
@@ -755,23 +825,21 @@ function renderInsightItem(item) {
    CARGA PRINCIPAL
    ============================================================ */
 async function carregarDashboard() {
+  // Reseta o cache da aba ALUNO para garantir dados frescos após atualização manual
+  alunosCarregados   = false;
+  dadosAlunosGlobais = [];
+  cabecalhoAlunos    = [];
   setStatus("loading");
   try {
-    const [resConsolidado, resPolo, resAluno] = await Promise.all([
+    // Aba ALUNO NÃO é carregada aqui — lazy load ocorre só quando o usuário exportar
+    const [resConsolidado, resPolo] = await Promise.all([
       fetch(URL_CONSOLIDADO),
       fetch(URL_POLO),
-      fetch(URL_ALUNO),
     ]);
     if (!resConsolidado.ok || !resPolo.ok) throw new Error("Erro de conexão com a planilha.");
 
     const linhasConsolidado = parseCSV(await resConsolidado.text());
     const linhasPolo        = parseCSV(await resPolo.text());
-
-    // Aba ALUNO — falha silenciosa para não bloquear o dashboard
-    if (resAluno.ok) {
-      try { processarAbaAluno(parseCSV(await resAluno.text())); }
-      catch (e) { console.warn("[Dashboard] Não foi possível carregar a aba ALUNO:", e); }
-    }
 
     // ── KPIs: usa a linha "GERAL - TOTAL (BASE DE DADOS)" (A17) ──
     // Busca pela linha que contém "TOTAL" para garantir robustez
