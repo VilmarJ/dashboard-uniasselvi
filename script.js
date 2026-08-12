@@ -537,23 +537,22 @@ async function _gerarPlanilhaExcelInterna(dados, nomeArquivoBase, btnRef, labelR
     if (idxPolo !== -1) {
       const codigosExportados = new Set(dados.map(item => String(item.codPolo).trim()));
 
-      // Filtra em chunks para não travar em bases grandes
-      setExportando(btnRef, labelRef, true, "Filtrando Alunos…");
+      // Filtra e monta os objetos em uma única passagem, evitando cópias
+      // intermediárias do array completo (185 mil linhas travava a aba).
+      setExportando(btnRef, labelRef, true, "Filtrando e montando Alunos…");
       avancarModalExport("filtrar");
-      const linhasAlunos = await processarEmChunks(dadosAlunosGlobais, 1000, linha => linha)
-        .then(todas => todas.filter(linha =>
-          codigosExportados.has(String(linha[idxPolo] ?? "").trim())
-        ));
-
-      if (linhasAlunos.length > 0) {
-        setExportando(btnRef, labelRef, true, "Montando planilha…");
-        avancarModalExport("montar");
-        const alunosExport = await processarEmChunks(linhasAlunos, 500, linha => {
+      const alunosExport = await processarEmChunks(
+        dadosAlunosGlobais.filter(linha => codigosExportados.has(String(linha[idxPolo] ?? "").trim())),
+        500,
+        linha => {
           const obj = {};
           cabecalhoAlunos.forEach((col, i) => { obj[col.trim()] = linha[i] ?? ""; });
           return obj;
-        });
+        }
+      );
+      avancarModalExport("montar");
 
+      if (alunosExport.length > 0) {
         const worksheetAlunos = XLSX.utils.json_to_sheet(alunosExport, {
           header: cabecalhoAlunos.map(c => c.trim()),
         });
@@ -571,7 +570,7 @@ async function _gerarPlanilhaExcelInterna(dados, nomeArquivoBase, btnRef, labelR
   const dataStr = agora.toLocaleDateString("pt-BR").split("/").join("-");
   const horaStr = agora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }).replace(":", "h");
 
-  XLSX.writeFile(workbook, `${nomeArquivoBase}_${dataStr}_${horaStr}.xlsx`);
+  XLSX.writeFile(workbook, `${nomeArquivoBase}_${dataStr}_${horaStr}.xlsx`, { compression: true });
 }
 
 async function exportarPolosParaExcel() {
