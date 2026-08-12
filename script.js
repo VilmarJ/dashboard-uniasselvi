@@ -40,6 +40,11 @@ const paginationInfo = document.getElementById("paginationInfo");
 const exportExcelBtn   = document.getElementById("exportExcelBtn");
 const exportExcelLabel = document.getElementById("exportExcelLabel");
 
+// Modal de progresso de exportação (compartilhado pelos dois tipos de export)
+const exportModalOverlay = document.getElementById("exportModalOverlay");
+const exportModalSub     = document.getElementById("exportModalSub");
+const exportModalSteps   = document.querySelectorAll("#exportModalSteps .export-step");
+
 /* ============================================================
    ESTADO GLOBAL
    ============================================================ */
@@ -383,6 +388,44 @@ function setExportando(btn, label, ativo, mensagem = "") {
 }
 
 /* ============================================================
+   MODAL DE PROGRESSO — usado pelos dois tipos de exportação
+   (botão "Exportar Excel" da tabela e botões "⬇" de gerência)
+   ============================================================ */
+const ORDEM_ETAPAS_EXPORT = ["preparar", "carregar", "filtrar", "montar", "gerar"];
+
+function abrirModalExport() {
+  exportModalOverlay.classList.remove("done");
+  exportModalSteps.forEach(li => li.classList.remove("active", "done"));
+  exportModalSub.textContent = "Isso pode levar alguns instantes...";
+  exportModalOverlay.classList.add("open");
+  exportModalOverlay.setAttribute("aria-hidden", "false");
+}
+
+/** Marca a etapa atual como "ativa" e todas as anteriores como "concluídas". */
+function avancarModalExport(etapa) {
+  const idxAtual = ORDEM_ETAPAS_EXPORT.indexOf(etapa);
+  exportModalSteps.forEach(li => {
+    const idx = ORDEM_ETAPAS_EXPORT.indexOf(li.dataset.step);
+    li.classList.toggle("done", idx < idxAtual);
+    li.classList.toggle("active", idx === idxAtual);
+  });
+}
+
+function concluirModalExport() {
+  exportModalSteps.forEach(li => li.classList.remove("active"));
+  exportModalSteps.forEach(li => li.classList.add("done"));
+  exportModalOverlay.classList.add("done");
+  exportModalSub.textContent = "Download concluído!";
+}
+
+function fecharModalExport(delay = 900) {
+  setTimeout(() => {
+    exportModalOverlay.classList.remove("open", "done");
+    exportModalOverlay.setAttribute("aria-hidden", "true");
+  }, delay);
+}
+
+/* ============================================================
    LAZY LOAD — aba ALUNO só é buscada na primeira exportação
    ============================================================ */
 async function garantirAlunosCarregados() {
@@ -426,7 +469,23 @@ function processarEmChunks(array, tamanhoChunk, transformFn) {
  *  A aba ALUNO é carregada via lazy load na primeira exportação.
  *  O processamento é feito em chunks para não travar o navegador. */
 async function gerarPlanilhaExcel(dados, nomeArquivoBase, btnRef, labelRef) {
+  abrirModalExport();
+  try {
+    await _gerarPlanilhaExcelInterna(dados, nomeArquivoBase, btnRef, labelRef);
+    concluirModalExport();
+  } catch (erro) {
+    console.error("[Dashboard] Erro ao gerar planilha:", erro);
+    exportModalSub.textContent = "Ocorreu um erro ao gerar o arquivo.";
+    alert("Não foi possível gerar a planilha. Tente novamente.");
+  } finally {
+    setExportando(btnRef, labelRef, false);
+    fecharModalExport();
+  }
+}
+
+async function _gerarPlanilhaExcelInterna(dados, nomeArquivoBase, btnRef, labelRef) {
   setExportando(btnRef, labelRef, true, "Preparando Polos…");
+  avancarModalExport("preparar");
 
   // ── Aba Polos em chunks (500 linhas por vez) ──
   const linhasExport = await processarEmChunks(dados, 500, item => ({
@@ -467,6 +526,7 @@ async function gerarPlanilhaExcel(dados, nomeArquivoBase, btnRef, labelRef) {
 
   // ── Aba Alunos: lazy load + chunks ──
   setExportando(btnRef, labelRef, true, "Carregando Alunos…");
+  avancarModalExport("carregar");
   await garantirAlunosCarregados();
 
   if (dadosAlunosGlobais.length > 0 && cabecalhoAlunos.length > 0) {
@@ -479,6 +539,7 @@ async function gerarPlanilhaExcel(dados, nomeArquivoBase, btnRef, labelRef) {
 
       // Filtra em chunks para não travar em bases grandes
       setExportando(btnRef, labelRef, true, "Filtrando Alunos…");
+      avancarModalExport("filtrar");
       const linhasAlunos = await processarEmChunks(dadosAlunosGlobais, 1000, linha => linha)
         .then(todas => todas.filter(linha =>
           codigosExportados.has(String(linha[idxPolo] ?? "").trim())
@@ -486,6 +547,7 @@ async function gerarPlanilhaExcel(dados, nomeArquivoBase, btnRef, labelRef) {
 
       if (linhasAlunos.length > 0) {
         setExportando(btnRef, labelRef, true, "Montando planilha…");
+        avancarModalExport("montar");
         const alunosExport = await processarEmChunks(linhasAlunos, 500, linha => {
           const obj = {};
           cabecalhoAlunos.forEach((col, i) => { obj[col.trim()] = linha[i] ?? ""; });
@@ -502,6 +564,7 @@ async function gerarPlanilhaExcel(dados, nomeArquivoBase, btnRef, labelRef) {
 
   // ── Grava o arquivo ──
   setExportando(btnRef, labelRef, true, "Gerando arquivo…");
+  avancarModalExport("gerar");
   await new Promise(r => setTimeout(r, 0)); // cede uma última vez antes do writeFile
 
   const agora   = new Date();
@@ -509,7 +572,6 @@ async function gerarPlanilhaExcel(dados, nomeArquivoBase, btnRef, labelRef) {
   const horaStr = agora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }).replace(":", "h");
 
   XLSX.writeFile(workbook, `${nomeArquivoBase}_${dataStr}_${horaStr}.xlsx`);
-  setExportando(btnRef, labelRef, false);
 }
 
 async function exportarPolosParaExcel() {

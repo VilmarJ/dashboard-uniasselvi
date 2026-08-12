@@ -226,6 +226,26 @@
 
   </main>
 
+  <!-- Modal de progresso — exibido durante a geração de qualquer exportação em Excel -->
+  <div class="export-modal-overlay" id="exportModalOverlay" aria-hidden="true">
+    <div class="export-modal" role="dialog" aria-modal="true" aria-labelledby="exportModalTitle">
+      <div class="export-modal-icon">
+        <span class="export-modal-spinner"></span>
+        <span class="export-modal-check">✓</span>
+      </div>
+      <h2 class="export-modal-title" id="exportModalTitle">Gerando planilha</h2>
+      <p class="export-modal-sub" id="exportModalSub">Isso pode levar alguns instantes...</p>
+
+      <ul class="export-modal-steps" id="exportModalSteps">
+        <li class="export-step" data-step="preparar"><span class="export-step-dot"></span><span class="export-step-label">Preparando polos</span></li>
+        <li class="export-step" data-step="carregar"><span class="export-step-dot"></span><span class="export-step-label">Carregando alunos</span></li>
+        <li class="export-step" data-step="filtrar"><span class="export-step-dot"></span><span class="export-step-label">Filtrando alunos</span></li>
+        <li class="export-step" data-step="montar"><span class="export-step-dot"></span><span class="export-step-label">Montando planilha</span></li>
+        <li class="export-step" data-step="gerar"><span class="export-step-dot"></span><span class="export-step-label">Gerando arquivo</span></li>
+      </ul>
+    </div>
+  </div>
+
   <script src="script.js"></script>
 </body>
 
