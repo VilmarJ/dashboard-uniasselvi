@@ -4,7 +4,7 @@
 const SPREADSHEET_ID  = "10Lts1kA9GD1bjSlR1HoLi3mIJBBCXc58tf-jCgOq-lc";
 const GID_POLO        = "0";           // Aba POLO (primeira aba)
 const GID_CONSOLIDADO = "220239882";   // Aba CONSOLIDADO
-const GID_ALUNO       = "";   // Aba ALUNO (carregada sob demanda, apenas ao exportar)
+const GID_ALUNO       = "879265867";   // Aba ALUNO (carregada sob demanda, apenas ao exportar)
 
 const URL_POLO        = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv&gid=${GID_POLO}`;
 const URL_CONSOLIDADO = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv&gid=${GID_CONSOLIDADO}`;
