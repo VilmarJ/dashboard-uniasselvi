@@ -1267,3 +1267,57 @@ body {
 @media (max-width: 480px) {
   .export-modal { padding: 1.7rem 1.4rem 1.5rem; }
 }
+
+/* ===== Filtro de carteira nas seções Regiões e Estados ===== */
+.grupo-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.select-wrapper--sm {
+  min-width: 180px;
+  max-width: 220px;
+}
+
+.select-wrapper--sm .custom-select-trigger {
+  font-size: 0.8rem;
+  padding: 0.45rem 2rem 0.45rem 0.8rem;
+  height: auto;
+}
+
+.select-wrapper--sm .custom-select-dropdown {
+  min-width: 200px;
+  max-height: 240px;
+}
+
+.clear-filters-btn--sm {
+  font-size: 0.78rem;
+  padding: 0.42rem 0.75rem;
+}
+
+.export-excel-btn--sm {
+  font-size: 0.78rem;
+  padding: 0.42rem 0.85rem;
+  gap: 0.35rem;
+}
+
+.export-excel-btn--sm .export-excel-icon {
+  font-size: 0.85rem;
+}
+
+/* ============================================================
+   CORREÇÃO DE CAMADA DOS FILTROS DE REGIÕES E ESTADOS
+   ============================================================ */
+
+.panel--regioes .panel-header,
+.panel--estados .panel-header {
+  position: relative;
+  z-index: 10;
+}
+
+.panel--regioes .custom-select-dropdown,
+.panel--estados .custom-select-dropdown {
+  z-index: 9999;
+}

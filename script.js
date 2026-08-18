@@ -254,6 +254,7 @@ function processarAbaPolo(linhas) {
     .sort();
 
   renderizarDropdownCarteiras();
+  inicializarDropdownsGrupos();
   paginaAtual = 1;
   renderizarTabelaPolos();
   renderizarInsights();
@@ -940,16 +941,37 @@ function renderInsightItem(item) {
 
 /* ============================================================
    REGIÕES E ESTADOS — agregação dinâmica a partir da aba POLO
-   Reutiliza as classes .gerencia-row / .gerencia-export-btn já
-   estilizadas, só que geradas via JS (os grupos variam conforme
-   os dados atuais da planilha).
+   Suporta filtro por carteira em cada seção, com recálculo
+   dinâmico dos totais e exportação dos dados filtrados.
    ============================================================ */
 const regioesRowsEl = document.getElementById("regioesRows");
 const estadosRowsEl = document.getElementById("estadosRows");
 
-function agruparDados(campo) {
+// Estado dos filtros de carteira para cada seção
+let carteirasFiltroRegiao  = [];
+let carteirasFiltroEstado  = [];
+
+// Elementos DOM dos filtros
+const regiaoCarteiraSelectTrigger = document.getElementById("regiaoCarteiraSelectTrigger");
+const regiaoCarteiraDropdown      = document.getElementById("regiaoCarteiraDropdown");
+const clearRegiaoFiltroBtn        = document.getElementById("clearRegiaoFiltroBtn");
+const exportRegiaoBtn             = document.getElementById("exportRegiaoBtn");
+const exportRegiaoLabel           = document.getElementById("exportRegiaoLabel");
+
+const estadoCarteiraSelectTrigger = document.getElementById("estadoCarteiraSelectTrigger");
+const estadoCarteiraDropdown      = document.getElementById("estadoCarteiraDropdown");
+const clearEstadoFiltroBtn        = document.getElementById("clearEstadoFiltroBtn");
+const exportEstadoBtn             = document.getElementById("exportEstadoBtn");
+const exportEstadoLabel           = document.getElementById("exportEstadoLabel");
+
+/** Agrega dados de polos por campo (regiao|estado), respeitando filtro de carteira. */
+function agruparDados(campo, carteirasFiltro) {
   const mapa = {};
-  dadosPolosGlobais.forEach(item => {
+  const fonte = carteirasFiltro && carteirasFiltro.length > 0
+    ? dadosPolosGlobais.filter(item => carteirasFiltro.includes(item.carteira))
+    : dadosPolosGlobais;
+
+  fonte.forEach(item => {
     const chave = item[campo] || "Não informado";
     if (!mapa[chave]) mapa[chave] = { nome: chave, pagantes: 0, metaMovel: 0, metaEdital: 0 };
     mapa[chave].pagantes   += item.pagantes;
@@ -979,18 +1001,169 @@ function renderizarLinhaGrupo(grupo, campo) {
   `;
 }
 
-function renderizarGrupos() {
-  if (!regioesRowsEl || !estadosRowsEl) return;
-  regioesRowsEl.innerHTML = agruparDados("regiao").map(g => renderizarLinhaGrupo(g, "regiao")).join("");
-  estadosRowsEl.innerHTML = agruparDados("estado").map(g => renderizarLinhaGrupo(g, "estado")).join("");
+/** Renderiza o dropdown de carteiras para uma seção (regiao ou estado). */
+function renderizarDropdownGrupo(dropdownEl, triggerEl, carteirasFiltro, onChangeFn) {
+  dropdownEl.innerHTML = "";
+  carteirasDisponiveis.forEach((carteira, i) => {
+    const uid  = `${dropdownEl.id}_c${i}`;
+    const item = document.createElement("div");
+    item.className = "dropdown-item";
+    item.innerHTML = `
+      <input type="checkbox" id="${uid}" value="${escapeHTML(carteira)}" ${carteirasFiltro.includes(carteira) ? "checked" : ""}>
+      <label for="${uid}">${escapeHTML(carteira)}</label>
+    `;
+    item.querySelector("input").addEventListener("change", e => onChangeFn(e));
+    dropdownEl.appendChild(item);
+  });
 }
 
-async function exportarPolosDoGrupo(campo, nome, btn) {
+function atualizarTextoTriggerGrupo(triggerEl, carteirasFiltro) {
+  if (carteirasFiltro.length === 0)      triggerEl.textContent = "Todas as carteiras";
+  else if (carteirasFiltro.length === 1) triggerEl.textContent = carteirasFiltro[0];
+  else                                   triggerEl.textContent = `${carteirasFiltro.length} carteiras sel.`;
+}
+
+/** Retorna os polos da aba POLO filtrados pela lista de carteiras informada. */
+function getPolosFiltradosPorCarteiras(carteirasFiltro) {
+  if (!carteirasFiltro || carteirasFiltro.length === 0) return dadosPolosGlobais;
+  return dadosPolosGlobais.filter(item => carteirasFiltro.includes(item.carteira));
+}
+
+function renderizarGrupos() {
+  if (!regioesRowsEl || !estadosRowsEl) return;
+
+  // Regiões
+  const gruposRegiao = agruparDados("regiao", carteirasFiltroRegiao);
+  regioesRowsEl.innerHTML = gruposRegiao.length > 0
+    ? gruposRegiao.map(g => renderizarLinhaGrupo(g, "regiao")).join("")
+    : `<div class="gerencia-row"><span class="gerencia-nome" style="color:var(--texto-suave);font-style:italic;">Nenhuma região encontrada para o filtro.</span></div>`;
+
+  // Atualiza botão de export da seção Regiões
+  const totalPolosRegiao = getPolosFiltradosPorCarteiras(carteirasFiltroRegiao).length;
+  if (exportRegiaoBtn) {
+    exportRegiaoBtn.disabled = totalPolosRegiao === 0;
+    if (exportRegiaoLabel) exportRegiaoLabel.textContent = totalPolosRegiao > 0 ? `Exportar (${totalPolosRegiao})` : "Exportar";
+  }
+
+  // Estados
+  const gruposEstado = agruparDados("estado", carteirasFiltroEstado);
+  estadosRowsEl.innerHTML = gruposEstado.length > 0
+    ? gruposEstado.map(g => renderizarLinhaGrupo(g, "estado")).join("")
+    : `<div class="gerencia-row"><span class="gerencia-nome" style="color:var(--texto-suave);font-style:italic;">Nenhum estado encontrado para o filtro.</span></div>`;
+
+  // Atualiza botão de export da seção Estados
+  const totalPolosEstado = getPolosFiltradosPorCarteiras(carteirasFiltroEstado).length;
+  if (exportEstadoBtn) {
+    exportEstadoBtn.disabled = totalPolosEstado === 0;
+    if (exportEstadoLabel) exportEstadoLabel.textContent = totalPolosEstado > 0 ? `Exportar (${totalPolosEstado})` : "Exportar";
+  }
+}
+
+/** Inicializa os dropdowns de carteira após carregar carteirasDisponiveis. */
+function inicializarDropdownsGrupos() {
+  // ── Regiões ──
+  renderizarDropdownGrupo(
+    regiaoCarteiraDropdown,
+    regiaoCarteiraSelectTrigger,
+    carteirasFiltroRegiao,
+    e => {
+      if (e.target.checked) carteirasFiltroRegiao.push(e.target.value);
+      else carteirasFiltroRegiao = carteirasFiltroRegiao.filter(c => c !== e.target.value);
+      atualizarTextoTriggerGrupo(regiaoCarteiraSelectTrigger, carteirasFiltroRegiao);
+      renderizarGrupos();
+    }
+  );
+
+  // ── Estados ──
+  renderizarDropdownGrupo(
+    estadoCarteiraDropdown,
+    estadoCarteiraSelectTrigger,
+    carteirasFiltroEstado,
+    e => {
+      if (e.target.checked) carteirasFiltroEstado.push(e.target.value);
+      else carteirasFiltroEstado = carteirasFiltroEstado.filter(c => c !== e.target.value);
+      atualizarTextoTriggerGrupo(estadoCarteiraSelectTrigger, carteirasFiltroEstado);
+      renderizarGrupos();
+    }
+  );
+}
+
+// Abertura/fechamento dos dropdowns das seções
+if (regiaoCarteiraSelectTrigger) {
+  regiaoCarteiraSelectTrigger.addEventListener("click", e => {
+    e.stopPropagation();
+    regiaoCarteiraDropdown.classList.toggle("open");
+    estadoCarteiraDropdown.classList.remove("open");
+  });
+  regiaoCarteiraDropdown.addEventListener("click", e => e.stopPropagation());
+}
+if (estadoCarteiraSelectTrigger) {
+  estadoCarteiraSelectTrigger.addEventListener("click", e => {
+    e.stopPropagation();
+    estadoCarteiraDropdown.classList.toggle("open");
+    regiaoCarteiraDropdown.classList.remove("open");
+  });
+  estadoCarteiraDropdown.addEventListener("click", e => e.stopPropagation());
+}
+document.addEventListener("click", () => {
+  if (regiaoCarteiraDropdown) regiaoCarteiraDropdown.classList.remove("open");
+  if (estadoCarteiraDropdown) estadoCarteiraDropdown.classList.remove("open");
+});
+
+// Botões Limpar
+if (clearRegiaoFiltroBtn) {
+  clearRegiaoFiltroBtn.addEventListener("click", () => {
+    carteirasFiltroRegiao = [];
+    regiaoCarteiraDropdown.querySelectorAll("input").forEach(chk => chk.checked = false);
+    atualizarTextoTriggerGrupo(regiaoCarteiraSelectTrigger, carteirasFiltroRegiao);
+    renderizarGrupos();
+  });
+}
+if (clearEstadoFiltroBtn) {
+  clearEstadoFiltroBtn.addEventListener("click", () => {
+    carteirasFiltroEstado = [];
+    estadoCarteiraDropdown.querySelectorAll("input").forEach(chk => chk.checked = false);
+    atualizarTextoTriggerGrupo(estadoCarteiraSelectTrigger, carteirasFiltroEstado);
+    renderizarGrupos();
+  });
+}
+
+// Botões de exportação das seções
+if (exportRegiaoBtn) {
+  exportRegiaoBtn.addEventListener("click", async () => {
+    if (dadosPolosGlobais.length === 0) { alert("Dados ainda carregando."); return; }
+    const dados = getPolosFiltradosPorCarteiras(carteirasFiltroRegiao);
+    if (dados.length === 0) { alert("Nenhum polo para exportar."); return; }
+    const sufixo = carteirasFiltroRegiao.length > 0
+      ? slugificar(carteirasFiltroRegiao.join("_"))
+      : "todas_carteiras";
+    exportRegiaoBtn.disabled = true;
+    try { await gerarPlanilhaExcel(dados, `regioes_${sufixo}`); }
+    finally { exportRegiaoBtn.disabled = false; }
+  });
+}
+if (exportEstadoBtn) {
+  exportEstadoBtn.addEventListener("click", async () => {
+    if (dadosPolosGlobais.length === 0) { alert("Dados ainda carregando."); return; }
+    const dados = getPolosFiltradosPorCarteiras(carteirasFiltroEstado);
+    if (dados.length === 0) { alert("Nenhum polo para exportar."); return; }
+    const sufixo = carteirasFiltroEstado.length > 0
+      ? slugificar(carteirasFiltroEstado.join("_"))
+      : "todas_carteiras";
+    exportEstadoBtn.disabled = true;
+    try { await gerarPlanilhaExcel(dados, `estados_${sufixo}`); }
+    finally { exportEstadoBtn.disabled = false; }
+  });
+}
+
+async function exportarPolosDoGrupo(campo, nome, carteirasAtivas, btn) {
   if (dadosPolosGlobais.length === 0) {
     alert("Os dados ainda estão carregando. Aguarde e tente novamente.");
     return;
   }
-  const dados = dadosPolosGlobais.filter(item => (item[campo] || "Não informado") === nome);
+  // Filtra primeiro pelas carteiras ativas na seção, depois pelo grupo (regiao/estado)
+  const base  = getPolosFiltradosPorCarteiras(carteirasAtivas);
+  const dados = base.filter(item => (item[campo] || "Não informado") === nome);
   if (dados.length === 0) {
     alert(`Nenhum polo encontrado para "${nome}".`);
     return;
@@ -1003,16 +1176,25 @@ async function exportarPolosDoGrupo(campo, nome, btn) {
   }
 }
 
-[regioesRowsEl, estadosRowsEl].forEach(container => {
-  if (!container) return;
-  container.addEventListener("click", e => {
+// Delegação de clique para os botões "⬇" de cada linha de região/estado
+if (regioesRowsEl) {
+  regioesRowsEl.addEventListener("click", e => {
     const btn = e.target.closest(".gerencia-export-btn");
     if (!btn) return;
     e.stopPropagation();
     const row = btn.closest(".gerencia-row");
-    exportarPolosDoGrupo(row.dataset.campo, row.dataset.nome, btn);
+    exportarPolosDoGrupo(row.dataset.campo, row.dataset.nome, carteirasFiltroRegiao, btn);
   });
-});
+}
+if (estadosRowsEl) {
+  estadosRowsEl.addEventListener("click", e => {
+    const btn = e.target.closest(".gerencia-export-btn");
+    if (!btn) return;
+    e.stopPropagation();
+    const row = btn.closest(".gerencia-row");
+    exportarPolosDoGrupo(row.dataset.campo, row.dataset.nome, carteirasFiltroEstado, btn);
+  });
+}
 
 /* ============================================================
    CARGA PRINCIPAL
@@ -1022,6 +1204,10 @@ async function carregarDashboard() {
   alunosCarregados   = false;
   dadosAlunosGlobais = [];
   cabecalhoAlunos    = [];
+
+  // Reseta filtros de carteira das seções Regiões e Estados
+  carteirasFiltroRegiao = [];
+  carteirasFiltroEstado = [];
   setStatus("loading");
   try {
     // Aba ALUNO NÃO é carregada aqui — lazy load ocorre só quando o usuário exportar
