@@ -219,6 +219,12 @@ body {
   overflow-x: auto;
 }
 
+/* Scroll vertical para colunas com muitas linhas (ex: Estados) */
+.gerencias-col--scroll {
+  max-height: 26rem;
+  overflow-y: auto;
+}
+
 /* Layout em grid de 7 colunas fixas — título e linhas compartilham
    o mesmo template, garantindo alinhamento perfeito entre cabeçalho e dados */
 .gerencias-col-title,
@@ -955,6 +961,11 @@ body {
    ============================================================ */
 .panel--insights {
   margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.panel--regioes {
+  margin-bottom: 1.5rem;
 }
 
 .insights-grid {

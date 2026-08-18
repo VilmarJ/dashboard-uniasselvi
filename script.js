@@ -237,6 +237,8 @@ function processarAbaPolo(linhas) {
     parceiro:   inlineTrim(l[idx["PARCEIRO"]]      ?? ""),
     carteira:   inlineTrim(l[idx["CARTEIRA"]]      ?? ""),
     analista:   inlineTrim(l[idx["ANALISTA"]]      ?? ""),
+    estado:     inlineTrim(l[idx["ESTADO"]]        ?? ""),
+    regiao:     inlineTrim(l[idx["REGIAO"]]        ?? ""),
     pagantes:   parseNumeroBR(l[idx["PAGANTES"]]        ?? ""),
     metaMovel:  parseNumeroBR(l[idx["META MOVEL"]]      ?? ""),
     pctMovel:   parseNumeroBR(l[idx["% META MOVEL"]]    ?? ""),
@@ -255,6 +257,7 @@ function processarAbaPolo(linhas) {
   paginaAtual = 1;
   renderizarTabelaPolos();
   renderizarInsights();
+  renderizarGrupos();
 }
 
 /* ============================================================
@@ -697,28 +700,35 @@ function renderizarInsights() {
 
   const elPositivos = document.getElementById("insightPositivos");
   const elMelhorias = document.getElementById("insightMelhorias");
-  const total       = dadosPolosGlobais.length;
+
+  // Todos os insights (positivos e de melhoria) consideram apenas
+  // polos com base relevante (Meta Edital >= 70) — evita que polos
+  // pequenos distorçam tanto os destaques quanto os alertas.
+  const CORTE_BASE_INSIGHTS = 70;
+  const elegiveis = dadosPolosGlobais.filter(i => i.metaEdital >= CORTE_BASE_INSIGHTS);
+  const total     = elegiveis.length;
 
   /* ══════════════════════════════════════════════
      DADOS PRÉ-CALCULADOS
   ══════════════════════════════════════════════ */
 
   // Polos acima de 100% da Meta Móvel
-  const acimaDaMeta = [...dadosPolosGlobais]
+  // Polos acima de 100% da Meta Móvel
+  const acimaDaMeta = [...elegiveis]
     .filter(i => i.pctMovel >= 100)
     .sort((a, b) => b.pctMovel - a.pctMovel);
 
   // Maior volume absoluto de pagantes
-  const maiorVolume = [...dadosPolosGlobais]
+  const maiorVolume = [...elegiveis]
     .sort((a, b) => b.pagantes - a.pagantes)[0];
 
   // Melhor % Meta Edital
-  const maiorPctEdital = [...dadosPolosGlobais]
+  const maiorPctEdital = [...elegiveis]
     .filter(i => i.pctEdital > 0)
     .sort((a, b) => b.pctEdital - a.pctEdital)[0];
 
   // Melhor % Meta Ciclo (polo mais próximo de bater a Meta Ciclo)
-  const maiorPctCiclo = [...dadosPolosGlobais]
+  const maiorPctCiclo = [...elegiveis]
     .filter(i => i.pctCiclo > 0)
     .sort((a, b) => b.pctCiclo - a.pctCiclo)[0];
 
@@ -730,26 +740,21 @@ function renderizarInsights() {
   const melhorCarteira = Object.entries(contagemPorCarteira)
     .sort((a, b) => b[1] - a[1])[0];
 
-  // Polos abaixo de 50% da Meta Móvel — considera apenas polos com base
-  // relevante (Meta Edital >= CORTE_BASE_MELHORIA), evitando que polos
-  // pequenos (ex: 2 alunos) distorçam o percentual e virem "falso alarme"
-  const CORTE_BASE_MELHORIA = 70;
-  const elegiveisMelhoria   = dadosPolosGlobais.filter(i => i.metaEdital >= CORTE_BASE_MELHORIA);
-
-  const abaixo50 = [...elegiveisMelhoria]
+  // Polos abaixo de 50% da Meta Móvel (já usando a mesma base elegível)
+  const abaixo50 = [...elegiveis]
     .filter(i => i.pctMovel < 50)
     .sort((a, b) => a.pctMovel - b.pctMovel);
 
-  // Polo com maior gap absoluto (mais pagantes faltando), só entre relevantes
-  const maiorGap = elegiveisMelhoria.length > 0
-    ? elegiveisMelhoria
+  // Polo com maior gap absoluto (mais pagantes faltando)
+  const maiorGap = elegiveis.length > 0
+    ? elegiveis
         .map(i => ({ ...i, gap: Math.max(0, i.metaMovel - i.pagantes) }))
         .sort((a, b) => b.gap - a.gap)[0]
     : null;
 
-  // Polo com maior meta mas pior % (potencial desperdiçado), só entre relevantes:
+  // Polo com maior meta mas pior % (potencial desperdiçado):
   // entre os polos com metaMovel no quartil superior, pegar o pior pctMovel
-  const metaOrdenada = [...elegiveisMelhoria].sort((a, b) => b.metaMovel - a.metaMovel);
+  const metaOrdenada = [...elegiveis].sort((a, b) => b.metaMovel - a.metaMovel);
   const corteQuartil = Math.floor(metaOrdenada.length * 0.25);
   const grandesMetas = metaOrdenada.slice(0, Math.max(corteQuartil, 5));
   const potencialDesperdico = grandesMetas.length > 0
@@ -845,8 +850,8 @@ function renderizarInsights() {
   // 1. Totalizador: polos abaixo de 50% (apenas com base relevante)
   if (abaixo50.length > 0) {
     const s = abaixo50.length === 1;
-    const pctBase = elegiveisMelhoria.length > 0
-      ? ((abaixo50.length / elegiveisMelhoria.length) * 100).toFixed(1)
+    const pctBase = elegiveis.length > 0
+      ? ((abaixo50.length / elegiveis.length) * 100).toFixed(1)
       : "0.0";
     melhorias.push({
       icone: "⚠️",
@@ -913,7 +918,7 @@ function renderizarInsights() {
     melhorias.push({
       icone: "📊",
       titulo: "Monitore os polos entre 50% e 80%",
-      detalhe: `${dadosPolosGlobais.filter(i => i.pctMovel >= 50 && i.pctMovel < 80).length} polos ainda abaixo de 80% da Meta Móvel`,
+      detalhe: `${elegiveis.filter(i => i.pctMovel >= 50 && i.pctMovel < 80).length} polos ainda abaixo de 80% da Meta Móvel`,
     });
   }
 
@@ -932,6 +937,82 @@ function renderInsightItem(item) {
     </li>
   `;
 }
+
+/* ============================================================
+   REGIÕES E ESTADOS — agregação dinâmica a partir da aba POLO
+   Reutiliza as classes .gerencia-row / .gerencia-export-btn já
+   estilizadas, só que geradas via JS (os grupos variam conforme
+   os dados atuais da planilha).
+   ============================================================ */
+const regioesRowsEl = document.getElementById("regioesRows");
+const estadosRowsEl = document.getElementById("estadosRows");
+
+function agruparDados(campo) {
+  const mapa = {};
+  dadosPolosGlobais.forEach(item => {
+    const chave = item[campo] || "Não informado";
+    if (!mapa[chave]) mapa[chave] = { nome: chave, pagantes: 0, metaMovel: 0, metaEdital: 0 };
+    mapa[chave].pagantes   += item.pagantes;
+    mapa[chave].metaMovel  += item.metaMovel;
+    mapa[chave].metaEdital += item.metaEdital;
+  });
+  return Object.values(mapa)
+    .map(g => ({
+      ...g,
+      pctMovel:  g.metaMovel  > 0 ? (g.pagantes / g.metaMovel)  * 100 : 0,
+      pctEdital: g.metaEdital > 0 ? (g.pagantes / g.metaEdital) * 100 : 0,
+    }))
+    .sort((a, b) => b.pagantes - a.pagantes);
+}
+
+function renderizarLinhaGrupo(grupo, campo) {
+  return `
+    <div class="gerencia-row" data-campo="${campo}" data-nome="${escapeHTML(grupo.nome)}">
+      <span class="gerencia-nome">${escapeHTML(grupo.nome)}</span>
+      <span class="gerencia-pagantes">${formatarNumero(grupo.pagantes)}</span>
+      <span class="gerencia-metamovel">${formatarNumero(grupo.metaMovel)}</span>
+      <span class="gerencia-pct">${formatarPercentual(grupo.pctMovel)}</span>
+      <span class="gerencia-metaedital">${formatarNumero(grupo.metaEdital)}</span>
+      <span class="gerencia-pctedital">${formatarPercentual(grupo.pctEdital)}</span>
+      <button class="gerencia-export-btn" title="Baixar polos deste grupo em Excel" aria-label="Baixar Excel">⬇</button>
+    </div>
+  `;
+}
+
+function renderizarGrupos() {
+  if (!regioesRowsEl || !estadosRowsEl) return;
+  regioesRowsEl.innerHTML = agruparDados("regiao").map(g => renderizarLinhaGrupo(g, "regiao")).join("");
+  estadosRowsEl.innerHTML = agruparDados("estado").map(g => renderizarLinhaGrupo(g, "estado")).join("");
+}
+
+async function exportarPolosDoGrupo(campo, nome, btn) {
+  if (dadosPolosGlobais.length === 0) {
+    alert("Os dados ainda estão carregando. Aguarde e tente novamente.");
+    return;
+  }
+  const dados = dadosPolosGlobais.filter(item => (item[campo] || "Não informado") === nome);
+  if (dados.length === 0) {
+    alert(`Nenhum polo encontrado para "${nome}".`);
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = "⏳"; }
+  try {
+    await gerarPlanilhaExcel(dados, `polos_${slugificar(nome)}`);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "⬇"; }
+  }
+}
+
+[regioesRowsEl, estadosRowsEl].forEach(container => {
+  if (!container) return;
+  container.addEventListener("click", e => {
+    const btn = e.target.closest(".gerencia-export-btn");
+    if (!btn) return;
+    e.stopPropagation();
+    const row = btn.closest(".gerencia-row");
+    exportarPolosDoGrupo(row.dataset.campo, row.dataset.nome, btn);
+  });
+});
 
 /* ============================================================
    CARGA PRINCIPAL
